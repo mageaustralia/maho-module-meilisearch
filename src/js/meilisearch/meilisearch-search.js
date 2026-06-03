@@ -53,6 +53,24 @@
         return hit.image_url ? (hit.image_url.indexOf('//') === 0 ? 'https:' + hit.image_url : hit.image_url) : '';
     }
 
+    // Same-origin, relative href for a hit. Page docs (Amasty pages, CMS, blog)
+    // index an absolute canonical `url` that can point at another host (e.g. the
+    // production domain on a staging clone), while `slug` is the relative path.
+    // Prefer the relative path so links always stay on the current host - and so
+    // they aren't decorated by the Google Ads/GA cross-domain linker (`_gl`).
+    function hitHref(hit, fallback) {
+        if (hit.slug) return hit.slug;
+        if (hit.url) {
+            try {
+                var u = new URL(hit.url, window.location.origin);
+                return u.pathname + u.search + u.hash;
+            } catch (e) {
+                return hit.url;
+            }
+        }
+        return fallback || '#';
+    }
+
     function highlight(hit, field) {
         if (hit._formatted && hit._formatted[field]) return hit._formatted[field];
         return esc(hit[field] || '');
@@ -227,7 +245,7 @@
                         return;
                     }
                     section.hits.forEach(function(hit) {
-                        var url = hit.url || '#';
+                        var url = hitHref(hit);
                         html += '<div class="meilisearch-autocomplete-hit" data-type="' + section.type + '">';
                         if (section.type === 'categories') {
                             html += '<a href="' + url + '">';
@@ -265,7 +283,7 @@
             if (products && products.hits.length) {
                 html += '<div class="meilisearch-autocomplete-hits">';
                 products.hits.forEach(function(hit) {
-                    var url = hit.url || config.baseUrl + '/catalog/product/view/id/' + hit.objectID;
+                    var url = hitHref(hit, config.baseUrl + '/catalog/product/view/id/' + hit.objectID);
                     var img = bestImage(hit);
                     var price = getPrice(hit);
                     html += '<div class="meilisearch-autocomplete-hit" data-type="products">';
@@ -486,7 +504,7 @@
             res.hits.forEach(function(hit) {
                 var img = bestImage(hit);
                 var price = getPrice(hit);
-                var url = hit.url || config.baseUrl + '/catalog/product/view/id/' + hit.objectID;
+                var url = hitHref(hit, config.baseUrl + '/catalog/product/view/id/' + hit.objectID);
                 html += '<div class="meilisearch-instantsearch-hit">';
                 html += '<div class="hit-image"><a href="' + url + '">';
                 if (img) html += '<img src="' + img + '" alt="' + esc(hit.name) + '" loading="lazy">';
