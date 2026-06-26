@@ -71,7 +71,11 @@ class Meilisearch_Search_AjaxController extends Mage_Core_Controller_Front_Actio
             $allowedTypes = ['product', 'category', 'page', 'blog', 'suggestion'];
             $type     = in_array($body['type'] ?? '', $allowedTypes, true) ? $body['type'] : 'product';
             $objectID = $body['objectID'] ?? $body['object_id'] ?? null;
-            $name     = mb_substr(trim($body['name'] ?? ''), 0, 255);
+            // Accept `object_name` (current JS) OR `name` (legacy beacons).
+            // The JS shipped with this module sends `object_name` to keep the
+            // payload field aligned with the DB column, but pre-2026 clients
+            // (and any third-party integrations) send `name`.
+            $name     = mb_substr(trim((string) ($body['object_name'] ?? $body['name'] ?? '')), 0, 255);
             $position = (int) ($body['position'] ?? 0);
             $storeId  = (int) Mage::app()->getStore()->getId();
 

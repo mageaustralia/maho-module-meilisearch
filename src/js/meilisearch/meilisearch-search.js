@@ -16,8 +16,74 @@
         if (!s) return '';
         var d = document.createElement('div');
         d.textContent = s;
-        return d.innerHTML;
+        // textContent → innerHTML escapes <, >, & — also escape " so attribute
+        // values rendered via esc() don't break out of data-meili-object-name="…"
+        return d.innerHTML.replace(/"/g, '&quot;');
     }
+
+    // ── Click tracking ────────────────────────────────────────────────
+    //
+    // POSTs each click on a search/autocomplete result to the module's
+    // /msearchtrack/ajax/trackclick endpoint so the admin Search Analytics
+    // dashboard has something to render. Uses sendBeacon when available
+    // (fire-and-forget, survives navigation) with a keepalive-fetch
+    // fallback for older browsers.
+    //
+    // Section/type mapping: the autocomplete dropdown groups hits under
+    // plural names (`products`, `categories`, …); the trackclick endpoint
+    // validates against singular names. Keep this in sync with the
+    // controller's $allowedTypes whitelist.
+
+    var SECTION_TO_TYPE = {
+        products: 'product',
+        categories: 'category',
+        pages: 'page',
+        blog: 'blog',
+        suggestions: 'suggestion',
+    };
+
+    function trackClick(payload) {
+        if (!payload || !payload.query || !payload.type) return;
+        var url = (config && config.baseUrl ? config.baseUrl : '') + '/msearchtrack/ajax/trackclick';
+        var body = JSON.stringify(payload);
+        try {
+            if (typeof navigator.sendBeacon === 'function') {
+                navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
+            } else {
+                fetch(url, {
+                    method: 'POST',
+                    body: body,
+                    headers: { 'Content-Type': 'application/json' },
+                    keepalive: true,
+                });
+            }
+        } catch (e) { /* analytics best-effort: never block navigation */ }
+    }
+
+    // HTML-attribute string for `data-meili-*` markers on a result link. A
+    // document-level capture-phase listener (below) picks these up and posts
+    // to the trackclick endpoint before the browser navigates.
+    function meiliDataAttrs(query, type, objectId, objectName) {
+        return ' data-meili-track="1"'
+            + ' data-meili-query="' + esc(query || '') + '"'
+            + ' data-meili-type="' + esc(type || '') + '"'
+            + ' data-meili-object-id="' + esc(String(objectId == null ? '' : objectId)) + '"'
+            + ' data-meili-object-name="' + esc(objectName || '') + '"';
+    }
+
+    // Document-level delegated listener. Capture phase so the POST fires even
+    // when the link's default handler stops propagation or an SPA router
+    // intercepts the anchor.
+    document.addEventListener('click', function(e) {
+        var link = e.target.closest ? e.target.closest('a[data-meili-track]') : null;
+        if (!link) return;
+        trackClick({
+            query: link.getAttribute('data-meili-query') || '',
+            type: link.getAttribute('data-meili-type') || '',
+            object_id: parseInt(link.getAttribute('data-meili-object-id'), 10) || 0,
+            object_name: link.getAttribute('data-meili-object-name') || '',
+        });
+    }, true);
 
     function formatPrice(amount) {
         if (!amount && amount !== 0) return '';
@@ -253,25 +319,28 @@
                         html += '</div></div>';
                         return;
                     }
+                    var sectionType = SECTION_TO_TYPE[section.type] || section.type;
                     section.hits.forEach(function(hit) {
                         var url = hitHref(hit);
+                        var hitName = section.type === 'blog' ? (hit.title || '') : (hit.name || '');
+                        var trackAttrs = meiliDataAttrs(query, sectionType, hit.objectID, hitName);
                         html += '<div class="meilisearch-autocomplete-hit" data-type="' + section.type + '">';
                         if (section.type === 'categories') {
-                            html += '<a href="' + url + '">';
+                            html += '<a href="' + url + '"' + trackAttrs + '>';
                             html += '<span>' + highlight(hit, 'name') + '</span>';
                             if (hit.product_count) html += '<span class="badge">' + hit.product_count + '</span>';
                             html += '</a>';
                         } else if (section.type === 'blog') {
                             // Blog posts use `title` (not `name`) since the
                             // Maho_Blog model exposes the field that way.
-                            html += '<a href="' + url + '">';
+                            html += '<a href="' + url + '"' + trackAttrs + '>';
                             html += '<span class="meilisearch-autocomplete-page-title">' + highlight(hit, 'title') + '</span>';
                             if (hit._formatted && hit._formatted.content) {
                                 html += '<span class="meilisearch-autocomplete-page-snippet">' + hit._formatted.content + '</span>';
                             }
                             html += '</a>';
                         } else {
-                            html += '<a href="' + url + '">';
+                            html += '<a href="' + url + '"' + trackAttrs + '>';
                             html += '<span class="meilisearch-autocomplete-page-title">' + highlight(hit, 'name') + '</span>';
                             if (hit._formatted && hit._formatted.content) {
                                 html += '<span class="meilisearch-autocomplete-page-snippet">' + hit._formatted.content + '</span>';
@@ -295,8 +364,9 @@
                     var url = hitHref(hit, config.baseUrl + '/catalog/product/view/id/' + hit.objectID);
                     var img = bestImage(hit);
                     var price = getPrice(hit);
+                    var trackAttrs = meiliDataAttrs(query, 'product', hit.objectID, hit.name);
                     html += '<div class="meilisearch-autocomplete-hit" data-type="products">';
-                    html += '<a href="' + url + '" class="meilisearch-autocomplete-product">';
+                    html += '<a href="' + url + '" class="meilisearch-autocomplete-product"' + trackAttrs + '>';
                     html += '<div class="meilisearch-autocomplete-product-image">';
                     if (img) html += '<img src="' + img + '" alt="' + esc(hit.name) + '" loading="lazy">';
                     html += '</div>';
@@ -320,14 +390,94 @@
             if (!isOpen) show();
         }
 
+        // ── Popular searches panel ──────────────────────────────────────
+        //
+        // Shown when the input is focused with NO query typed. Pulls the
+        // top N popular queries from Meilisearch's _suggestions index (a
+        // history-driven popularity index populated by the
+        // meilisearch_rebuild_suggestions cron). Cached per page so we only
+        // hit Meilisearch once. Filters out short/junk queries that pollute
+        // the panel.
+
+        var popularCache = null;
+
+        function showPopularSuggestions() {
+            if (isOpen) return;
+            if (popularCache) {
+                renderPopularPanel(popularCache);
+                return;
+            }
+            var idx = config.indexName;
+            client.index(idx + '_suggestions').search('', { limit: 10 })
+                .then(function(r) {
+                    if (r.hits && r.hits.length > 0) {
+                        popularCache = r.hits;
+                        renderPopularPanel(r.hits);
+                    }
+                })
+                .catch(function() { /* suggestions index may not exist — skip silently */ });
+        }
+
+        function renderPopularPanel(suggestions) {
+            // Filter short/filler queries so the panel never shows "as", "the",
+            // or developer test queries.
+            suggestions = suggestions.filter(function(s) {
+                var q = (s.query || '').trim().toLowerCase();
+                return q.length >= 5 && ['test', 'asdf', 'hello'].indexOf(q) === -1;
+            });
+            if (!suggestions.length) return;
+
+            var html = '<div class="meilisearch-autocomplete-wrapper" style="max-width:400px">';
+            html += '<div style="padding:12px 0">';
+            html += '<div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#999;padding:0 12px 8px;border-bottom:1px solid #eee;margin-bottom:4px;">' + esc(config.translations.popularSearches || 'Popular Searches') + '</div>';
+            suggestions.forEach(function(s) {
+                var q = s.query || '';
+                html += '<a href="#" class="meilisearch-autocomplete-hit" data-popular-query="' + esc(q) + '" style="display:flex;align-items:center;gap:8px;padding:7px 12px;color:#333;text-decoration:none;border-radius:4px;font-size:14px;transition:background .15s;"'
+                    + ' onmouseover="this.style.background=\'#f5f5f5\'" onmouseout="this.style.background=\'transparent\'">';
+                html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#bbb" stroke-width="2" style="flex-shrink:0"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>';
+                html += '<span>' + esc(q) + '</span>';
+                html += '</a>';
+            });
+            html += '</div></div>';
+
+            dropdown.innerHTML = html;
+
+            // Clicking a popular query fills the input and triggers a real
+            // search — not a navigation, since these aren't products.
+            // stopPropagation is required: a host theme's dropdown click
+            // handler may tear down a full-screen search overlay whenever
+            // any <a> inside the dropdown is clicked (so result navigation
+            // closes the overlay). Without stopPropagation, that teardown
+            // runs after this handler and immediately closes the dropdown
+            // we just populated with the search results.
+            dropdown.querySelectorAll('[data-popular-query]').forEach(function(el) {
+                el.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var q = this.getAttribute('data-popular-query');
+                    input.value = q;
+                    input.focus();
+                    search(q);
+                });
+            });
+
+            if (!isOpen) show();
+        }
+
         // Events
         input.addEventListener('keyup', debounce(function(e) {
             if ([13, 27, 38, 40].indexOf(e.keyCode) !== -1) return;
+            if (input.value.length < 2) {
+                if (input.value.length === 0) showPopularSuggestions();
+                else hide();
+                return;
+            }
             search(input.value);
         }, 300));
 
         input.addEventListener('focus', function() {
             if (input.value.length >= 2) search(input.value);
+            else if (input.value.length === 0) showPopularSuggestions();
         });
 
         document.addEventListener('click', function(e) {
@@ -521,12 +671,13 @@
                 var img = bestImage(hit);
                 var price = getPrice(hit);
                 var url = hitHref(hit, config.baseUrl + '/catalog/product/view/id/' + hit.objectID);
+                var trackAttrs = meiliDataAttrs(state.query, 'product', hit.objectID, hit.name);
                 html += '<div class="meilisearch-instantsearch-hit">';
-                html += '<div class="hit-image"><a href="' + url + '">';
+                html += '<div class="hit-image"><a href="' + url + '"' + trackAttrs + '>';
                 if (img) html += '<img src="' + img + '" alt="' + esc(hit.name) + '" loading="lazy">';
                 html += '</a></div>';
                 html += '<div class="hit-content">';
-                html += '<h3 class="hit-name"><a href="' + url + '">' + highlight(hit, 'name') + '</a></h3>';
+                html += '<h3 class="hit-name"><a href="' + url + '"' + trackAttrs + '>' + highlight(hit, 'name') + '</a></h3>';
                 if (price) html += '<div class="hit-price">' + formatPrice(price) + '</div>';
                 html += '</div></div>';
             });
