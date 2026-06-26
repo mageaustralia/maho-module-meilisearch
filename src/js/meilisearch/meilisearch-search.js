@@ -158,11 +158,20 @@
             // Products
             var nProducts = parseInt(config.autocomplete.nbOfProductsSuggestions) || 10;
             if (nProducts > 0) {
+                var acProductParams = {
+                    limit: nProducts,
+                    attributesToHighlight: ['name']
+                };
+                // Hybrid blend if admin has it on for autocomplete. `hybrid`
+                // being absent (rather than null/false) keeps the request
+                // BM25-only — Meilisearch refuses any falsy value in this
+                // field, hence the explicit `if`.
+                if (config.autocomplete && config.autocomplete.hybrid) {
+                    acProductParams.hybrid = config.autocomplete.hybrid;
+                }
                 promises.push(
-                    client.index(idx + '_products').search(query, {
-                        limit: nProducts,
-                        attributesToHighlight: ['name']
-                    }).then(function(r) { return { type: 'products', hits: r.hits }; })
+                    client.index(idx + '_products').search(query, acProductParams)
+                        .then(function(r) { return { type: 'products', hits: r.hits }; })
                 );
             }
 
@@ -478,6 +487,13 @@
                 filters.push('categories.level' + config.request.level + ' = "' + config.request.path + '"');
             }
             if (filters.length) searchParams.filter = filters.join(' AND ');
+
+            // Hybrid blend for the main results page. Skipped for sort indexes
+            // (sort indexes hold only objectID + a single numeric field, so
+            // they have no document text to embed and Meilisearch would 400).
+            if (!state.sort && config.instant && config.instant.hybrid) {
+                searchParams.hybrid = config.instant.hybrid;
+            }
 
             var indexName = state.sort || (config.indexName + '_products');
             client.index(indexName).search(state.query, searchParams).then(function(res) {

@@ -68,6 +68,22 @@ class Meilisearch_Search_Helper_Config extends Mage_Core_Helper_Abstract
     public const XML_PATH_IMAGE_TYPE = 'meilisearch/image/type';
     public const XML_PATH_PREFIX = 'meilisearch/';
 
+    // Hybrid / semantic search (Meilisearch 1.13+ native vector search)
+    public const SEMANTIC_ENABLED = 'meilisearch/semantic_search/enabled';
+    public const SEMANTIC_EMBEDDER_NAME = 'meilisearch/semantic_search/embedder_name';
+    public const SEMANTIC_EMBEDDER_MODEL = 'meilisearch/semantic_search/embedder_model';
+    public const SEMANTIC_RATIO = 'meilisearch/semantic_search/semantic_ratio';
+    public const SEMANTIC_DOCUMENT_TEMPLATE = 'meilisearch/semantic_search/document_template';
+    public const SEMANTIC_DOCUMENT_TEMPLATE_MAX_BYTES = 'meilisearch/semantic_search/document_template_max_bytes';
+    public const SEMANTIC_APPLY_TO_AUTOCOMPLETE = 'meilisearch/semantic_search/apply_to_autocomplete';
+    public const SEMANTIC_APPLY_TO_INSTANT = 'meilisearch/semantic_search/apply_to_instant';
+
+    public const DEFAULT_EMBEDDER_NAME = 'hf';
+    public const DEFAULT_EMBEDDER_MODEL = 'BAAI/bge-small-en-v1.5';
+    public const DEFAULT_SEMANTIC_RATIO = '0.5';
+    public const DEFAULT_DOCUMENT_TEMPLATE = 'A {{doc.type_id}} product called {{doc.name}}. {{doc.description}}';
+    public const DEFAULT_DOCUMENT_TEMPLATE_MAX_BYTES = '1200';
+
     public const ENABLE_SYNONYMS = 'meilisearch/synonyms/enable_synonyms';
     public const SYNONYMS = 'meilisearch/synonyms/synonyms';
     public const ONEWAY_SYNONYMS = 'meilisearch/synonyms/oneway_synonyms';
@@ -400,6 +416,101 @@ class Meilisearch_Search_Helper_Config extends Mage_Core_Helper_Abstract
     public function isInstantEnabled($storeId = null)
     {
         return Mage::getStoreConfigFlag(self::IS_INSTANT_ENABLED, $storeId);
+    }
+
+    // -----------------------------------------------------------------------
+    // Hybrid / semantic search accessors. Defaults are returned for missing
+    // config so a brand-new install can save the flag and immediately have a
+    // working bge-small embedder pushed to its indexes without filling in
+    // every field by hand.
+    // -----------------------------------------------------------------------
+
+    public function isSemanticSearchEnabled($storeId = null): bool
+    {
+        return Mage::getStoreConfigFlag(self::SEMANTIC_ENABLED, $storeId);
+    }
+
+    public function getSemanticEmbedderName($storeId = null): string
+    {
+        $v = trim((string) Mage::getStoreConfig(self::SEMANTIC_EMBEDDER_NAME, $storeId));
+        return $v !== '' ? $v : self::DEFAULT_EMBEDDER_NAME;
+    }
+
+    public function getSemanticEmbedderModel($storeId = null): string
+    {
+        $v = trim((string) Mage::getStoreConfig(self::SEMANTIC_EMBEDDER_MODEL, $storeId));
+        return $v !== '' ? $v : self::DEFAULT_EMBEDDER_MODEL;
+    }
+
+    public function getSemanticRatio($storeId = null): float
+    {
+        $raw = (string) Mage::getStoreConfig(self::SEMANTIC_RATIO, $storeId);
+        $v = $raw !== '' ? (float) $raw : (float) self::DEFAULT_SEMANTIC_RATIO;
+        return max(0.0, min(1.0, $v));
+    }
+
+    public function getSemanticDocumentTemplate($storeId = null): string
+    {
+        $v = (string) Mage::getStoreConfig(self::SEMANTIC_DOCUMENT_TEMPLATE, $storeId);
+        return $v !== '' ? $v : self::DEFAULT_DOCUMENT_TEMPLATE;
+    }
+
+    public function getSemanticDocumentTemplateMaxBytes($storeId = null): int
+    {
+        $v = (int) Mage::getStoreConfig(self::SEMANTIC_DOCUMENT_TEMPLATE_MAX_BYTES, $storeId);
+        return $v > 0 ? $v : (int) self::DEFAULT_DOCUMENT_TEMPLATE_MAX_BYTES;
+    }
+
+    public function shouldApplySemanticToAutocomplete($storeId = null): bool
+    {
+        return $this->isSemanticSearchEnabled($storeId)
+            && Mage::getStoreConfigFlag(self::SEMANTIC_APPLY_TO_AUTOCOMPLETE, $storeId);
+    }
+
+    public function shouldApplySemanticToInstant($storeId = null): bool
+    {
+        return $this->isSemanticSearchEnabled($storeId)
+            && Mage::getStoreConfigFlag(self::SEMANTIC_APPLY_TO_INSTANT, $storeId);
+    }
+
+    /**
+     * The hybrid config block as Meilisearch expects it in its `hybrid` search
+     * argument. Returns `null` when semantic search is off so the caller can
+     * simply spread `[...baseQuery, ...(hybrid ?? [])]` without conditional
+     * shenanigans.
+     *
+     * @return array{embedder: string, semanticRatio: float}|null
+     */
+    public function getHybridQueryArgs($storeId = null): ?array
+    {
+        if (!$this->isSemanticSearchEnabled($storeId)) {
+            return null;
+        }
+        return [
+            'embedder' => $this->getSemanticEmbedderName($storeId),
+            'semanticRatio' => $this->getSemanticRatio($storeId),
+        ];
+    }
+
+    /**
+     * The embedder config block as Meilisearch expects it in a PATCH to
+     * /indexes/{uid}/settings/embedders. Returns `null` when semantic search
+     * is off so the indexer can pass `embedders: {}` to clear any previously
+     * applied embedder rather than leaving it dangling.
+     *
+     * @return array{source: string, model: string, documentTemplate: string, documentTemplateMaxBytes: int}|null
+     */
+    public function getEmbedderSettings($storeId = null): ?array
+    {
+        if (!$this->isSemanticSearchEnabled($storeId)) {
+            return null;
+        }
+        return [
+            'source' => 'huggingFace',
+            'model' => $this->getSemanticEmbedderModel($storeId),
+            'documentTemplate' => $this->getSemanticDocumentTemplate($storeId),
+            'documentTemplateMaxBytes' => $this->getSemanticDocumentTemplateMaxBytes($storeId),
+        ];
     }
 
     /**

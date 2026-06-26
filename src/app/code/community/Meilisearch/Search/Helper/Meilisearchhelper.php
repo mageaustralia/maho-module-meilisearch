@@ -214,6 +214,42 @@ class Meilisearch_Search_Helper_Meilisearchhelper extends Mage_Core_Helper_Abstr
         return ['results' => $results];
     }
 
+    /**
+     * Push (or clear) the hybrid-search embedders for an index. Pass an empty
+     * array as `$embedders` to clear any previously-applied config.
+     *
+     * On a fresh embedder, Meilisearch downloads the Hugging Face model
+     * (typically 30-100 MB) and re-embeds every existing document in the
+     * background. The returned task UID lets the caller poll
+     * /tasks/{uid} for progress, but indexing settings keep working
+     * meanwhile — keyword search is unaffected.
+     *
+     * @param array<string, array<string, mixed>> $embedders
+     * @throws \Meilisearch\Exceptions\ApiException on Meilisearch HTTP error
+     */
+    public function setEmbedders(string $indexName, array $embedders): array
+    {
+        if (!$this->client) {
+            return ['taskUid' => null];
+        }
+
+        try {
+            $this->client->getIndex($indexName);
+        } catch (\Exception) {
+            $this->client->createIndex($indexName, ['primaryKey' => 'objectID']);
+        }
+
+        $index = $this->client->index($indexName);
+
+        // The PHP SDK doesn't have a typed wrapper for embedders yet on every
+        // supported version, so fall through to updateSettings which accepts
+        // the raw key.
+        $payload = ['embedders' => empty($embedders) ? new \stdClass() : $embedders];
+        $response = $index->updateSettings($payload);
+
+        return is_array($response) ? $response : ['taskUid' => $response];
+    }
+
     public function setSettings($indexName, $settings, $forwardToReplicas = false)
     {
         // Create index if it doesn't exist

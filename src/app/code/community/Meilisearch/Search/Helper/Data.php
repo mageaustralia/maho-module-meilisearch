@@ -150,6 +150,47 @@ class Meilisearch_Search_Helper_Data extends Mage_Core_Helper_Abstract
         $this->product_helper->setSettings($storeId, $saveToTmpIndicesToo);
 
         $this->setExtraSettings($storeId, $saveToTmpIndicesToo);
+
+        // Push (or clear) the semantic-search embedder on the products index
+        // whenever core search settings are pushed. Decoupled into its own
+        // method so it can be re-triggered standalone via the admin "Re-push
+        // embedder" action without forcing a full settings rebuild.
+        $this->pushEmbedderSettings($storeId, $saveToTmpIndicesToo);
+    }
+
+    /**
+     * Push the hybrid-search embedder config to the products index for the
+     * given store. If semantic search is disabled in admin, this clears any
+     * previously-pushed embedder so a former hybrid setup doesn't keep
+     * embedding new docs after the feature is turned off.
+     */
+    public function pushEmbedderSettings($storeId, $saveToTmpIndicesToo = false): void
+    {
+        $embedderName = $this->config->getSemanticEmbedderName($storeId);
+        $embedderSettings = $this->config->getEmbedderSettings($storeId);
+
+        $payload = $embedderSettings !== null
+            ? [$embedderName => $embedderSettings]
+            : [];
+
+        $indexName = $this->product_helper->getIndexName($storeId);
+        try {
+            $this->meilisearch_helper->setEmbedders($indexName, $payload);
+            if ($saveToTmpIndicesToo) {
+                $this->meilisearch_helper->setEmbedders($indexName . '_tmp', $payload);
+            }
+        } catch (\Throwable $e) {
+            // Embedder PATCH can fail for genuine reasons (model download
+            // blocked by sandboxing, model not supported by Meilisearch's
+            // candle build, etc). Log and continue rather than break the
+            // settings push — the operator sees the error in the index page
+            // and the rest of search remains usable.
+            Mage::log(
+                'Meilisearch: failed to push embedder settings for ' . $indexName . ': ' . $e->getMessage(),
+                Mage::LOG_WARNING,
+                'meilisearch.log',
+            );
+        }
     }
 
     public function getSearchResult($query, $storeId)
