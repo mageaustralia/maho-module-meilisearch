@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 class Meilisearch_Search_Adminhtml_Meilisearch_QueueController extends Mage_Adminhtml_Controller_Action
 {
     #[\Override]
@@ -76,6 +81,6 @@ class Meilisearch_Search_Adminhtml_Meilisearch_QueueController extends Mage_Admi
     private function sendResponse($data)
     {
         $this->getResponse()->setHeader('Content-Type', 'application/json');
-        $this->getResponse()->setBody(json_encode($data));
+        $this->getResponse()->setBody(Mage::helper('core')->jsonEncode($data));
     }
 }

@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 class Meilisearch_Search_Helper_Entity_Additionalsectionshelper extends Meilisearch_Search_Helper_Entity_Helper
 {
     protected function getIndexNameSuffix()
@@ -13,7 +18,7 @@ class Meilisearch_Search_Helper_Entity_Additionalsectionshelper extends Meilisea
             'searchableAttributes' => ['unordered(value)'],
         ];
 
-        $transport = new Varien_Object($indexSettings);
+        $transport = new \Maho\DataObject($indexSettings);
         Mage::dispatchEvent('meilisearch_additional_sections_index_before_set_settings', ['store_id' => $storeId, 'index_settings' => $transport]);
         $indexSettings = $transport->getData();
 
@@ -68,7 +73,7 @@ class Meilisearch_Search_Helper_Entity_Additionalsectionshelper extends Meilisea
                 'value'    => $value,
             ];
 
-            $transport = new Varien_Object($record);
+            $transport = new \Maho\DataObject($record);
             Mage::dispatchEvent('meilisearch_additional_section_item_index_before', ['section' => $section, 'record' => $transport, 'store_id' => $storeId]); // Only for backward compatibility
             Mage::dispatchEvent('meilisearch_additional_section_items_before_index', ['section' => $section, 'record' => $transport, 'store_id' => $storeId]);
             $record = $transport->getData();

@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 class Meilisearch_Search_Model_Resource_Fulltext extends Mage_CatalogSearch_Model_Resource_Fulltext
 {
     /** Empty because we need it to do nothing (no mysql stuff), Indexing is handled by Model/Indexer/Meilisearch */

@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 class Meilisearch_Search_Model_Indexer_Meilisearchsuggestions extends Meilisearch_Search_Model_Indexer_Abstract
 {
     public const EVENT_MATCH_RESULT_KEY = 'meilisearch_match_result';

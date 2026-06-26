@@ -1,6 +1,11 @@
 <?php
 
 /**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
+/**
  * MeiliSearch Queue Job Model
  *
  * @category    Meilisearch
@@ -12,6 +17,7 @@ class Meilisearch_Search_Model_Queue_Job extends Mage_Core_Model_Abstract
     /**
      * Initialize model
      */
+    #[\Override]
     protected function _construct()
     {
         $this->_init('meilisearch_search/queue');

@@ -1,6 +1,11 @@
 <?php
 
 /**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
+/**
  * MeiliSearch Configuration Status Display
  *
  * @category    Meilisearch
@@ -10,7 +15,7 @@
 class Meilisearch_Search_Block_System_Config_Form_Field_Status extends Mage_Adminhtml_Block_System_Config_Form_Field
 {
     #[\Override]
-    protected function _getElementHtml(Varien_Data_Form_Element_Abstract $element)
+    protected function _getElementHtml(\Maho\Data\Form\Element\AbstractElement $element)
     {
         $html = '<div class="meilisearch-status" style="padding: 10px; border-radius: 5px; margin: 10px 0;">';
 

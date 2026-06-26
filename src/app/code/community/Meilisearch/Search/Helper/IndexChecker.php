@@ -1,11 +1,16 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 class Meilisearch_Search_Helper_IndexChecker extends Mage_Core_Helper_Abstract
 {
     /** @var Meilisearch_Search_Helper_Config */
     private $configHelper;
 
-    /** @var Varien_Db_Adapter_Interface */
+    /** @var \Maho\Db\Adapter\AdapterInterface */
     private $dbConnection;
 
     /** @var array */

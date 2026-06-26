@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 class Meilisearch_Search_Helper_Data extends Mage_Core_Helper_Abstract
 {
     public const COLLECTION_PAGE_SIZE = 100;
@@ -978,7 +983,7 @@ class Meilisearch_Search_Helper_Data extends Mage_Core_Helper_Abstract
             return addslashes($translated);
         }
 
-        return json_encode($translated);
+        return Mage::helper('core')->jsonEncode($translated);
     }
 
     public function isX3Version()
@@ -1007,7 +1012,7 @@ class Meilisearch_Search_Helper_Data extends Mage_Core_Helper_Abstract
                 $extraSettings = $this->config->getExtraSettings($section, $storeId);
 
                 if ($extraSettings) {
-                    $extraSettings = json_decode($extraSettings, true);
+                    $extraSettings = Mage::helper('core')->jsonDecode($extraSettings);
 
                     $this->meilisearch_helper->setSettings($indexName, $extraSettings, true);
 

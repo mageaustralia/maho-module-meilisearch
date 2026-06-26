@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 class Meilisearch_Search_Block_System_Config_Form_Field_Select extends Mage_Adminhtml_Block_Html_Select
 {
     #[\Override]

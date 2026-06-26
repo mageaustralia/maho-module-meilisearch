@@ -1,4 +1,9 @@
 <?php
+
+/**
+ * SPDX-License-Identifier: AFL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
 /**
  * Meilisearch Configuration Template
  * Sets up the global JavaScript configuration for frontend search
@@ -264,7 +269,7 @@ $meilisearchJsConfig = array(
 );
 
 // Allow extension via events
-$transport = new Varien_Object($meilisearchJsConfig);
+$transport = new \Maho\DataObject($meilisearchJsConfig);
 Mage::dispatchEvent('meilisearch_after_create_configuration', array('configuration' => $transport));
 $meilisearchJsConfig = $transport->getData();
 

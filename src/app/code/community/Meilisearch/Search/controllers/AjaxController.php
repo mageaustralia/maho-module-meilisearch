@@ -32,7 +32,7 @@ class Meilisearch_Search_AjaxController extends Mage_Core_Controller_Front_Actio
 
         $this->getResponse()
             ->setHeader('Content-Type', 'application/json')
-            ->setBody(json_encode(['formKey' => $formKey]));
+            ->setBody(Mage::helper('core')->jsonEncode(['formKey' => $formKey]));
     }
 
     /**
@@ -48,8 +48,20 @@ class Meilisearch_Search_AjaxController extends Mage_Core_Controller_Front_Actio
             return;
         }
 
+        // Origin / Referer same-origin check.
+        // The storefront posts via `navigator.sendBeacon` (or keepalive fetch),
+        // which can't carry a form_key header — beacons disallow custom headers
+        // entirely. Form-key body injection is also fragile (the beacon may
+        // outlive the page). Falling back to Origin/Referer matches the
+        // canonical store base URL, which is what the browser controls and an
+        // attacker cannot forge cross-site.
+        if (!$this->_isSameOriginRequest()) {
+            $this->getResponse()->setHttpResponseCode(403);
+            return;
+        }
+
         try {
-            $body = json_decode($this->getRequest()->getRawBody(), true);
+            $body = Mage::helper('core')->jsonDecode($this->getRequest()->getRawBody());
             if (!$body || empty($body['query'])) {
                 $this->getResponse()->setHttpResponseCode(400);
                 return;
@@ -70,16 +82,16 @@ class Meilisearch_Search_AjaxController extends Mage_Core_Controller_Front_Actio
             // Ensure table exists (created lazily)
             if (!$write->isTableExists($table)) {
                 $ddl = $write->newTable($table)
-                    ->addColumn('click_id', Varien_Db_Ddl_Table::TYPE_INTEGER, null, [
+                    ->addColumn('click_id', \Maho\Db\Ddl\Table::TYPE_INTEGER, null, [
                         'identity' => true, 'unsigned' => true, 'nullable' => false, 'primary' => true,
                     ])
-                    ->addColumn('store_id', Varien_Db_Ddl_Table::TYPE_SMALLINT, null, ['unsigned' => true, 'nullable' => false])
-                    ->addColumn('query', Varien_Db_Ddl_Table::TYPE_TEXT, 128, ['nullable' => false])
-                    ->addColumn('type', Varien_Db_Ddl_Table::TYPE_TEXT, 20, ['nullable' => false, 'default' => 'product'])
-                    ->addColumn('object_id', Varien_Db_Ddl_Table::TYPE_INTEGER, null, ['unsigned' => true, 'nullable' => true])
-                    ->addColumn('object_name', Varien_Db_Ddl_Table::TYPE_TEXT, 255, ['nullable' => true])
-                    ->addColumn('position', Varien_Db_Ddl_Table::TYPE_SMALLINT, null, ['unsigned' => true, 'nullable' => false, 'default' => 0])
-                    ->addColumn('created_at', Varien_Db_Ddl_Table::TYPE_TIMESTAMP, null, ['nullable' => false, 'default' => Varien_Db_Ddl_Table::TIMESTAMP_INIT])
+                    ->addColumn('store_id', \Maho\Db\Ddl\Table::TYPE_SMALLINT, null, ['unsigned' => true, 'nullable' => false])
+                    ->addColumn('query', \Maho\Db\Ddl\Table::TYPE_TEXT, 128, ['nullable' => false])
+                    ->addColumn('type', \Maho\Db\Ddl\Table::TYPE_TEXT, 20, ['nullable' => false, 'default' => 'product'])
+                    ->addColumn('object_id', \Maho\Db\Ddl\Table::TYPE_INTEGER, null, ['unsigned' => true, 'nullable' => true])
+                    ->addColumn('object_name', \Maho\Db\Ddl\Table::TYPE_TEXT, 255, ['nullable' => true])
+                    ->addColumn('position', \Maho\Db\Ddl\Table::TYPE_SMALLINT, null, ['unsigned' => true, 'nullable' => false, 'default' => 0])
+                    ->addColumn('created_at', \Maho\Db\Ddl\Table::TYPE_TIMESTAMP, null, ['nullable' => false, 'default' => \Maho\Db\Ddl\Table::TIMESTAMP_INIT])
                     ->addIndex($write->getIndexName($table, ['store_id', 'query']), ['store_id', 'query'])
                     ->addIndex($write->getIndexName($table, ['object_id']), ['object_id'])
                     ->setComment('Meilisearch Search Click-Through Analytics');
@@ -117,5 +129,36 @@ class Meilisearch_Search_AjaxController extends Mage_Core_Controller_Front_Actio
             Mage::logException($e);
             $this->getResponse()->setHttpResponseCode(500);
         }
+    }
+
+    /**
+     * Same-origin check for beacon endpoints that can't carry a form_key.
+     *
+     * Validates the request `Origin` header (preferred — set by the browser
+     * for cross-origin and same-origin POSTs including sendBeacon) against
+     * the configured store base URL. Falls back to `Referer` if Origin is
+     * absent (some same-origin same-scheme POSTs omit Origin). Returns
+     * `true` only when the request originates from this store's host on
+     * the same scheme.
+     */
+    private function _isSameOriginRequest(): bool
+    {
+        $origin = (string) $this->getRequest()->getHeader('Origin');
+        $source = $origin !== '' ? $origin : (string) $this->getRequest()->getHeader('Referer');
+        if ($source === '') {
+            return false;
+        }
+
+        $sourceHost = parse_url($source, PHP_URL_HOST);
+        $sourceScheme = parse_url($source, PHP_URL_SCHEME);
+        if (!$sourceHost || !$sourceScheme) {
+            return false;
+        }
+
+        $storeBase = (string) Mage::app()->getStore()->getBaseUrl(Mage_Core_Model_Store::URL_TYPE_LINK);
+        $storeHost = parse_url($storeBase, PHP_URL_HOST);
+        $storeScheme = parse_url($storeBase, PHP_URL_SCHEME);
+
+        return $sourceHost === $storeHost && $sourceScheme === $storeScheme;
     }
 }

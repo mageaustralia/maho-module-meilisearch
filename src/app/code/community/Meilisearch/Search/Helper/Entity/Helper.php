@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 abstract class Meilisearch_Search_Helper_Entity_Helper extends Mage_Core_Helper_Abstract
 {
     /** @var Meilisearch_Search_Helper_Config */

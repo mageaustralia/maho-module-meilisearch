@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 class Meilisearch_Search_Helper_Entity_Suggestionhelper extends Meilisearch_Search_Helper_Entity_Helper
 {
     protected $_popularQueries = null;
@@ -20,7 +25,7 @@ class Meilisearch_Search_Helper_Entity_Suggestionhelper extends Meilisearch_Sear
             'removeWordsIfNoResults' => 'lastWords',
         ];
 
-        $transport = new Varien_Object($indexSettings);
+        $transport = new \Maho\DataObject($indexSettings);
         Mage::dispatchEvent('meilisearch_suggestions_index_before_set_settings', ['store_id' => $storeId, 'index_settings' => $transport]);
         $indexSettings = $transport->getData();
 
@@ -37,7 +42,7 @@ class Meilisearch_Search_Helper_Entity_Suggestionhelper extends Meilisearch_Sear
             'updated_at'        => (int) strtotime((string) $suggestion->getData('updated_at')),
         ];
 
-        $transport = new Varien_Object($suggestionObject);
+        $transport = new \Maho\DataObject($suggestionObject);
         Mage::dispatchEvent('meilisearch_after_create_suggestion_object', ['suggestion' => $transport, 'suggestionObject' => $suggestion]);
         $suggestionObject = $transport->getData();
 

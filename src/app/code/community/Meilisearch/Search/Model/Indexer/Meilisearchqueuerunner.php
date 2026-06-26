@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 class Meilisearch_Search_Model_Indexer_Meilisearchqueuerunner extends Mage_Index_Model_Indexer_Abstract
 {
     public const INDEXER_ID = 'meilisearch_queue_runner';

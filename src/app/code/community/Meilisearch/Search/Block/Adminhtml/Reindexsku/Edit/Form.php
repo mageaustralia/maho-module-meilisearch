@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 class Meilisearch_Search_Block_Adminhtml_Reindexsku_Edit_Form extends Mage_Adminhtml_Block_Widget_Form
 {
     /**
@@ -8,7 +13,7 @@ class Meilisearch_Search_Block_Adminhtml_Reindexsku_Edit_Form extends Mage_Admin
     #[\Override]
     protected function _prepareForm()
     {
-        $form = new Varien_Data_Form([
+        $form = new \Maho\Data\Form([
             'id' => 'edit_form',
             'action' => $this->getUrl('*/*/reindexPost'),
             'method' => 'post',

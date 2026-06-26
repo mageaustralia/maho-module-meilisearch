@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 class Meilisearch_Search_Helper_Entity_Amastypagehelper extends Meilisearch_Search_Helper_Entity_Helper
 {
     protected function getIndexNameSuffix()
@@ -16,7 +21,7 @@ class Meilisearch_Search_Helper_Entity_Amastypagehelper extends Meilisearch_Sear
             'attributesToCrop' => ['content:10'],
         ];
 
-        $transport = new Varien_Object($indexSettings);
+        $transport = new \Maho\DataObject($indexSettings);
         Mage::dispatchEvent('meilisearch_pages_index_before_set_settings', ['store_id' => $storeId, 'index_settings' => $transport]);
         $indexSettings = $transport->getData();
 
@@ -81,7 +86,7 @@ class Meilisearch_Search_Helper_Entity_Amastypagehelper extends Meilisearch_Sear
             $pageObject['url'] = $page->getUrl();
             $pageObject['content'] = $this->strip($content, ['script', 'style']);
 
-            $transport = new Varien_Object($pageObject);
+            $transport = new \Maho\DataObject($pageObject);
             Mage::dispatchEvent('meilisearch_after_create_amasty_page_object', ['page' => $transport, 'pageObject' => $page]);
             $pageObject = $transport->getData();
 
@@ -110,7 +115,7 @@ class Meilisearch_Search_Helper_Entity_Amastypagehelper extends Meilisearch_Sear
         return true;
     }
 
-    public function getObject(Varien_Object $page)
+    public function getObject(\Maho\DataObject $page)
     {
         $pageObject = [];
 
@@ -122,7 +127,7 @@ class Meilisearch_Search_Helper_Entity_Amastypagehelper extends Meilisearch_Sear
         $pageObject['url'] = $page->getUrl();
         $pageObject['content'] = $this->strip($page->getDescription(), ['script', 'style']);
 
-        $transport = new Varien_Object($pageObject);
+        $transport = new \Maho\DataObject($pageObject);
         Mage::dispatchEvent('meilisearch_after_create_amasty_page_object', ['page' => $transport, 'pageObject' => $page]);
 
         return $transport->getData();

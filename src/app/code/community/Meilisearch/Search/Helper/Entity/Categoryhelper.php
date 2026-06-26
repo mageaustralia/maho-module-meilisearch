@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 class Meilisearch_Search_Helper_Entity_Categoryhelper extends Meilisearch_Search_Helper_Entity_Helper
 {
     protected static $_categoryAttributes;
@@ -45,7 +50,7 @@ class Meilisearch_Search_Helper_Entity_Categoryhelper extends Meilisearch_Search
         ];
 
         // Additional index settings from event observer
-        $transport = new Varien_Object($indexSettings);
+        $transport = new \Maho\DataObject($indexSettings);
         Mage::dispatchEvent('meilisearch_index_settings_prepare', ['store_id' => $storeId, 'index_settings' => $transport]);
         Mage::dispatchEvent('meilisearch_categories_index_before_set_settings', ['store_id' => $storeId, 'index_settings' => $transport]);
         $indexSettings = $transport->getData();
@@ -137,7 +142,7 @@ class Meilisearch_Search_Helper_Entity_Categoryhelper extends Meilisearch_Search
 
         $customData = [];
 
-        $transport = new Varien_Object($customData);
+        $transport = new \Maho\DataObject($customData);
         Mage::dispatchEvent('meilisearch_category_index_before', ['category' => $category, 'custom_data' => $transport]);
         $customData = $transport->getData();
 
@@ -198,7 +203,7 @@ class Meilisearch_Search_Helper_Entity_Categoryhelper extends Meilisearch_Search
             $data0 = $this->try_cast($data0);
         }
 
-        $transport = new Varien_Object($data);
+        $transport = new \Maho\DataObject($data);
         Mage::dispatchEvent('meilisearch_after_create_category_object', ['category' => $transport, 'categoryObject' => $category]);
         $data = $transport->getData();
 

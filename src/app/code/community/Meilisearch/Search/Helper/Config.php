@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 class Meilisearch_Search_Helper_Config extends Mage_Core_Helper_Abstract
 {
     public const MINIMAL_QUERY_LENGTH = 'meilisearch/ui/minimal_query_length';
@@ -258,10 +263,7 @@ class Meilisearch_Search_Helper_Config extends Mage_Core_Helper_Abstract
 
         try {
             // Fallback to JSON decode
-            $decoded = json_decode((string) $data, true);
-            if (json_last_error() === JSON_ERROR_NONE) {
-                return $decoded;
-            }
+            return Mage::helper('core')->jsonDecode((string) $data);
         } catch (Exception) {
             // Continue to error handling
         }

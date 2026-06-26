@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 class Meilisearch_Search_Model_Indexer_Meilisearch extends Meilisearch_Search_Model_Indexer_Abstract
 {
     public const EVENT_MATCH_RESULT_KEY = 'meilisearch_match_result';
@@ -158,7 +163,7 @@ class Meilisearch_Search_Model_Indexer_Meilisearch extends Meilisearch_Search_Mo
                 break;
 
             case Mage_Index_Model_Event::TYPE_MASS_ACTION:
-                /** @var Varien_Object $actionObject */
+                /** @var Mage_Core_Model_Abstract $actionObject */
                 $actionObject = $event->getDataObject();
 
                 $event->addNewData('catalogsearch_update_product_id', $actionObject->getProductIds());

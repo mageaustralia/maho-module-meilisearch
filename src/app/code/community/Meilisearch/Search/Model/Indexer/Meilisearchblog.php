@@ -1,6 +1,11 @@
 <?php
 
 /**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
+/**
  * Meilisearch indexer for Maho_Blog posts.
  *
  * Mirrors Meilisearchpages: a manual-only indexer (no event matching) that

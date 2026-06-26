@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 // Include Meilisearch autoloader for OpenMage
 require_once dirname(__FILE__, 2) . '/Model/Autoloader.php';
 
@@ -224,7 +229,7 @@ class Meilisearch_Search_Helper_Meilisearchhelper extends Mage_Core_Helper_Abstr
         $meilisearchSettings = $this->convertIndexSettings($settings);
 
         // Debug logging
-        Mage::log('Meilisearch settings for ' . $indexName . ': ' . json_encode($meilisearchSettings), null, 'meilisearch_debug.log');
+        Mage::log('Meilisearch settings for ' . $indexName . ': ' . Mage::helper('core')->jsonEncode($meilisearchSettings), null, 'meilisearch_debug.log');
 
         // Additional check for empty arrays that should be objects
         foreach ($meilisearchSettings as $key => &$value) {
@@ -352,7 +357,7 @@ class Meilisearch_Search_Helper_Meilisearchhelper extends Mage_Core_Helper_Abstr
 
         // Debug log the first object to check structure
         if (!empty($objects) && isset($objects[0])) {
-            Mage::log('First document being indexed: ' . json_encode($objects[0]), null, 'meilisearch_debug.log');
+            Mage::log('First document being indexed: ' . Mage::helper('core')->jsonEncode($objects[0]), null, 'meilisearch_debug.log');
         }
 
         // Meilisearch needs to know the primary key is 'objectID'
