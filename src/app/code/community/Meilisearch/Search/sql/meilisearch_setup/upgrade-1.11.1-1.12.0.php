@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 declare(strict_types=1);
 
 // Same schema as 1.7.1 → 1.11.1 — kept to cover installs that jumped past

@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 class Meilisearch_Search_Adminhtml_Meilisearch_SearchAnalyticsController extends Mage_Adminhtml_Controller_Action
 {
     #[\Maho\Config\Route('/msearchtrack/adminhtml_meilisearch_searchanalytics', name: 'msearchtrack.adminhtml_meilisearch_searchanalytics')]

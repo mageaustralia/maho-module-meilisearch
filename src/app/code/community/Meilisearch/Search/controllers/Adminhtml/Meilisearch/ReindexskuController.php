@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 class Meilisearch_Search_Adminhtml_Meilisearch_ReindexskuController extends Mage_Adminhtml_Controller_Action
 {
     public const MAX_SKUS = 10;

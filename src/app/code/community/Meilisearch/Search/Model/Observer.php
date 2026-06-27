@@ -1,6 +1,11 @@
 <?php
 
 /**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
+/**
  * Meilisearch search observer model.
  */
 class Meilisearch_Search_Model_Observer
@@ -32,7 +37,7 @@ class Meilisearch_Search_Model_Observer
     /**
      * On configuration save
      */
-    public function configSaved(Varien_Event_Observer $observer)
+    public function configSaved(\Maho\Event\Observer $observer)
     {
         // Exceptions propagate naturally so the admin sees the error.
         $this->saveSettings();
@@ -40,7 +45,7 @@ class Meilisearch_Search_Model_Observer
 
     public function saveSettings($isFullProductReindex = false)
     {
-        if (is_object($isFullProductReindex) && $isFullProductReindex::class === 'Varien_Object') {
+        if (is_object($isFullProductReindex) && $isFullProductReindex::class === '\Maho\DataObject') {
             $eventData = $isFullProductReindex->getData();
             $isFullProductReindex = $eventData['isFullProductReindex'];
         }
@@ -53,7 +58,7 @@ class Meilisearch_Search_Model_Observer
         }
     }
 
-    public function addBundleToAdmin(Varien_Event_Observer $observer)
+    public function addBundleToAdmin(\Maho\Event\Observer $observer)
     {
         $req = Mage::app()->getRequest();
 
@@ -67,7 +72,7 @@ class Meilisearch_Search_Model_Observer
      *
      * @return $this
      */
-    public function useMeilisearchSearchPopup(Varien_Event_Observer $observer)
+    public function useMeilisearchSearchPopup(\Maho\Event\Observer $observer)
     {
         if (!$this->config->isEnabledFrontEnd()) {
             return $this;
@@ -87,7 +92,7 @@ class Meilisearch_Search_Model_Observer
         return $this;
     }
 
-    public function saveProduct(Varien_Event_Observer $observer)
+    public function saveProduct(\Maho\Event\Observer $observer)
     {
         if ($this->isIndexerInManualMode('meilisearch_search_indexer')) {
             return;
@@ -102,7 +107,7 @@ class Meilisearch_Search_Model_Observer
     /**
      * @event cms_page_save_commit_after
      */
-    public function savePage(Varien_Event_Observer $observer)
+    public function savePage(\Maho\Event\Observer $observer)
     {
         if (!$this->config->getServerUrl()
             || !$this->config->getAPIKey()
@@ -125,21 +130,21 @@ class Meilisearch_Search_Model_Observer
         }
     }
 
-    public function deleteProductsStoreIndices(Varien_Object $event)
+    public function deleteProductsStoreIndices(\Maho\DataObject $event)
     {
         $storeId = $event->getStoreId();
 
         $this->helper->deleteProductsStoreIndices($storeId);
     }
 
-    public function deleteCategoriesStoreIndices(Varien_Object $event)
+    public function deleteCategoriesStoreIndices(\Maho\DataObject $event)
     {
         $storeId = $event->getStoreId();
 
         $this->helper->deleteCategoriesStoreIndices($storeId);
     }
 
-    public function removeCategories(Varien_Object $event)
+    public function removeCategories(\Maho\DataObject $event)
     {
         $storeId = $event->getStoreId();
         $category_ids = $event->getCategoryIds();
@@ -147,14 +152,14 @@ class Meilisearch_Search_Model_Observer
         $this->helper->removeCategories($category_ids, $storeId);
     }
 
-    public function rebuildAdditionalSectionsIndex(Varien_Object $event)
+    public function rebuildAdditionalSectionsIndex(\Maho\DataObject $event)
     {
         $storeId = $event->getStoreId();
 
         $this->helper->rebuildStoreAdditionalSectionsIndex($storeId);
     }
 
-    public function rebuildPageIndex(Varien_Object $event)
+    public function rebuildPageIndex(\Maho\DataObject $event)
     {
         $storeId = $event->getStoreId();
         $pageIds = $event->getPageIds();
@@ -162,7 +167,7 @@ class Meilisearch_Search_Model_Observer
         $this->helper->rebuildStorePageIndex($storeId, $pageIds);
     }
 
-    public function rebuildBlogIndex(Varien_Object $event)
+    public function rebuildBlogIndex(\Maho\DataObject $event)
     {
         $storeId = $event->getStoreId();
         $postIds = $event->getPostIds();
@@ -170,7 +175,7 @@ class Meilisearch_Search_Model_Observer
         $this->helper->rebuildStoreBlogIndex($storeId, $postIds);
     }
 
-    public function rebuildFaqIndex(Varien_Object $event)
+    public function rebuildFaqIndex(\Maho\DataObject $event)
     {
         $storeId = $event->getStoreId();
         $faqIds = $event->getFaqIds();
@@ -178,7 +183,7 @@ class Meilisearch_Search_Model_Observer
         $this->helper->rebuildStoreFaqIndex($storeId, $faqIds);
     }
 
-    public function rebuildSuggestionIndex(Varien_Object $event)
+    public function rebuildSuggestionIndex(\Maho\DataObject $event)
     {
         $storeId = $event->getStoreId();
 
@@ -209,14 +214,14 @@ class Meilisearch_Search_Model_Observer
         return $this;
     }
 
-    public function moveStoreSuggestionIndex(Varien_Object $event)
+    public function moveStoreSuggestionIndex(\Maho\DataObject $event)
     {
         $storeId = $event->getStoreId();
 
         $this->helper->moveStoreSuggestionIndex($storeId);
     }
 
-    public function rebuildCategoryIndex(Varien_Object $event)
+    public function rebuildCategoryIndex(\Maho\DataObject $event)
     {
         $storeId = $event->getStoreId();
         $categoryIds = $event->getCategoryIds();
@@ -248,7 +253,7 @@ class Meilisearch_Search_Model_Observer
         return $this;
     }
 
-    public function rebuildProductIndex(Varien_Object $event)
+    public function rebuildProductIndex(\Maho\DataObject $event)
     {
         $storeId = $event->getStoreId();
         $productIds = $event->getProductIds();
@@ -278,14 +283,14 @@ class Meilisearch_Search_Model_Observer
         return $this;
     }
 
-    public function moveProductsTmpIndex(Varien_Object $event)
+    public function moveProductsTmpIndex(\Maho\DataObject $event)
     {
         $storeId = $event->getStoreId();
 
         $this->helper->moveProductsIndex($storeId);
     }
 
-    private function loadMeilisearchSearchHandle(Varien_Event_Observer $observer)
+    private function loadMeilisearchSearchHandle(\Maho\Event\Observer $observer)
     {
         // isAutoCompleteEnabled() is an alias for isPopupEnabled() - they read
         // the same DB flag - so checking both is redundant. Keep the OR with
@@ -297,7 +302,7 @@ class Meilisearch_Search_Model_Observer
         $observer->getData('layout')->getUpdate()->addHandle('meilisearch_search_handle');
     }
 
-    private function loadSearchFormHandle(Varien_Event_Observer $observer)
+    private function loadSearchFormHandle(\Maho\Event\Observer $observer)
     {
         if (!$this->config->isDefaultSelector()) {
             return;
@@ -306,7 +311,7 @@ class Meilisearch_Search_Model_Observer
         $observer->getData('layout')->getUpdate()->addHandle('meilisearch_search_handle_with_topsearch');
     }
 
-    private function loadPreventBackendRenderingHandle(Varien_Event_Observer $observer)
+    private function loadPreventBackendRenderingHandle(\Maho\Event\Observer $observer)
     {
         if (!$this->config->preventBackendRendering()) {
             return;

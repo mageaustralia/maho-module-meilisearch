@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 class Meilisearch_Search_Model_Queue
 {
     public const SUCCESS_LOG = 'meilisearch_queue_log.txt';
@@ -11,7 +16,7 @@ class Meilisearch_Search_Model_Queue
     protected $logTable;
     protected $archiveTable;
 
-    /** @var Magento_Db_Adapter_Pdo_Mysql */
+    /** @var \Maho\Db\Adapter\AdapterInterface */
     protected $db;
 
     /** @var Meilisearch_Search_Helper_Config */
@@ -59,7 +64,7 @@ class Meilisearch_Search_Model_Queue
             'created'   => date('Y-m-d H:i:s'),
             'class'     => $class,
             'method'    => $method,
-            'data'      => json_encode($data),
+            'data'      => Mage::helper('core')->jsonEncode($data),
             'data_size' => $data_size,
             'pid'       => null,
         ]);
@@ -146,7 +151,7 @@ class Meilisearch_Search_Model_Queue
             try {
                 $model = Mage::getSingleton($job['class']);
                 $method = $job['method'];
-                $model->{$method}(new Varien_Object($job['data']));
+                $model->{$method}(new \Maho\DataObject($job['data']));
 
                 // Delete one by one
                 $this->db->delete($this->table, ['job_id IN (?)' => $job['merged_ids']]);
@@ -160,7 +165,7 @@ class Meilisearch_Search_Model_Queue
                 $logMessage = 'Queue processing ' . $job['pid'] . ' [KO]: 
                      Class: ' . $job['class'] . ', 
                      Method: ' . $job['method'] . ', 
-                     Parameters: ' . json_encode($job['data']);
+                     Parameters: ' . Mage::helper('core')->jsonEncode($job['data']);
                 $this->logger->log($logMessage);
 
                 $logMessage = date('c') . ' ERROR: ' . $e::class . ': 
@@ -292,7 +297,7 @@ class Meilisearch_Search_Model_Queue
     private function prepareJobs($jobs)
     {
         foreach ($jobs as &$job) {
-            $job['data'] = json_decode((string) $job['data'], true);
+            $job['data'] = Mage::helper('core')->jsonDecode((string) $job['data']);
             $job['merged_ids'][] = $job['job_id'];
         }
 

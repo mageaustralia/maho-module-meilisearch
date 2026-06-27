@@ -1,6 +1,11 @@
 <?php
 
 /**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
+/**
  * Meilisearch search engine model.
  */
 class Meilisearch_Search_Model_Resource_Engine extends Mage_CatalogSearch_Model_Resource_Fulltext_Engine
@@ -47,7 +52,7 @@ class Meilisearch_Search_Model_Resource_Engine extends Mage_CatalogSearch_Model_
         if ($this->config->isQueueActive()) {
             $this->queue->add($observer, $method, $data, $data_size);
         } else {
-            Mage::getSingleton($observer)->$method(new Varien_Object($data));
+            Mage::getSingleton($observer)->$method(new \Maho\DataObject($data));
         }
     }
 

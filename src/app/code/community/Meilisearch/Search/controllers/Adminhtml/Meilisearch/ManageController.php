@@ -1,6 +1,11 @@
 <?php
 
 /**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
+/**
  * MeiliSearch Management Controller
  *
  * @category    Meilisearch
@@ -134,7 +139,7 @@ class Meilisearch_Search_Adminhtml_Meilisearch_ManageController extends Mage_Adm
         $prefix   = (string) Mage::helper('meilisearch_search/config')->getIndexPrefix();
 
         if ($prefix !== '' && !str_starts_with($indexUid, $prefix)) {
-            $this->getResponse()->setBody(json_encode([
+            $this->getResponse()->setBody(Mage::helper('core')->jsonEncode([
                 'success' => false,
                 'message' => $this->__('Index UID does not match the configured prefix.'),
             ]));
@@ -151,12 +156,12 @@ class Meilisearch_Search_Adminhtml_Meilisearch_ManageController extends Mage_Adm
 
             $client->deleteIndex($indexUid);
 
-            $this->getResponse()->setBody(json_encode([
+            $this->getResponse()->setBody(Mage::helper('core')->jsonEncode([
                 'success' => true,
                 'message' => $this->__('Index deleted successfully'),
             ]));
         } catch (Exception $e) {
-            $this->getResponse()->setBody(json_encode([
+            $this->getResponse()->setBody(Mage::helper('core')->jsonEncode([
                 'success' => false,
                 'message' => $e->getMessage(),
             ]));

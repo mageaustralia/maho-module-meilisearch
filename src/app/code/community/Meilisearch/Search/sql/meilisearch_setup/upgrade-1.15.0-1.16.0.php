@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 declare(strict_types=1);
 
 /** @var Mage_Core_Model_Resource_Setup $installer */

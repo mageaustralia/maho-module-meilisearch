@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 abstract class Meilisearch_Search_Block_System_Config_Form_Field_AbstractField extends Mage_Adminhtml_Block_System_Config_Form_Field_Array_Abstract
 {
     protected $settings;
@@ -40,7 +45,7 @@ abstract class Meilisearch_Search_Block_System_Config_Form_Field_AbstractField e
     }
 
     #[\Override]
-    protected function _prepareArrayRow(Varien_Object $row)
+    protected function _prepareArrayRow(\Maho\DataObject $row)
     {
         foreach ($this->settings['columns'] as $columnName => $columnSettings) {
             if (!isset($columnSettings['options']) || !isset($columnSettings['rowMethod'])) {

@@ -1,6 +1,11 @@
 <?php
 
 /**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
+/**
  * Source model for meilisearch remove words if no result.
  */
 class Meilisearch_Search_Model_System_Removewords

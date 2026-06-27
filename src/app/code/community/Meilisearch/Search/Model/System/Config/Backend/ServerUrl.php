@@ -1,6 +1,11 @@
 <?php
 
 /**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
+/**
  * MeiliSearch Server URL Validation
  *
  * @category    Meilisearch
@@ -83,7 +88,11 @@ class Meilisearch_Search_Model_System_Config_Backend_ServerUrl extends Mage_Core
                 throw new Exception('Server returned status code: ' . $statusCode);
             }
 
-            $data = json_decode($response->getContent(), true);
+            try {
+                $data = Mage::helper('core')->jsonDecode($response->getContent());
+            } catch (JsonException $e) {
+                throw new Exception('Server returned non-JSON response: ' . $e->getMessage());
+            }
             if (isset($data['status']) && $data['status'] === 'available') {
                 $helper = Mage::helper('meilisearch_search');
                 $this->_getSession()->addSuccess(

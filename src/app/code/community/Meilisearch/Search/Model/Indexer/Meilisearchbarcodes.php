@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 class Meilisearch_Search_Model_Indexer_Meilisearchbarcodes extends Meilisearch_Search_Model_Indexer_Abstract
 {
     public const EVENT_MATCH_RESULT_KEY = 'meilisearch_barcodes_match_result';
@@ -102,7 +107,7 @@ class Meilisearch_Search_Model_Indexer_Meilisearchbarcodes extends Meilisearch_S
                 break;
 
             case Mage_Index_Model_Event::TYPE_MASS_ACTION:
-                /** @var Varien_Object $actionObject */
+                /** @var Mage_Core_Model_Abstract $actionObject */
                 $actionObject = $event->getDataObject();
                 $event->addNewData('barcode_update_product_id', $actionObject->getProductIds());
                 break;

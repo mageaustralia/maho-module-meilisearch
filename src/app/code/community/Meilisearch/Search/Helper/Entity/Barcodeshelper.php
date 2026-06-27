@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 use MeilisearchSearch\MeilisearchException;
 
 class Meilisearch_Search_Helper_Entity_Barcodeshelper extends Meilisearch_Search_Helper_Entity_Helper
@@ -59,10 +64,10 @@ class Meilisearch_Search_Helper_Entity_Barcodeshelper extends Meilisearch_Search
             $products->addPriceData();
 
             // Always use left join for price index to include products without prices
-            $fromPart = $products->getSelect()->getPart(Varien_Db_Select::FROM);
+            $fromPart = $products->getSelect()->getPart(\Maho\Db\Select::FROM);
             if (isset($fromPart['price_index'])) {
                 $fromPart['price_index']['joinType'] = 'left join';
-                $products->getSelect()->setPart(Varien_Db_Select::FROM, $fromPart);
+                $products->getSelect()->setPart(\Maho\Db\Select::FROM, $fromPart);
             }
         }
 

@@ -1,6 +1,11 @@
 <?php
 
 /**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
+/**
  * Blog post entity helper. Indexes Maho_Blog posts into a per-store
  * `<prefix>_<store>_blog` index so the Meilisearch autocomplete can
  * surface them alongside Pages and Categories.
@@ -29,7 +34,7 @@ class Meilisearch_Search_Helper_Entity_Bloghelper extends Meilisearch_Search_Hel
             'attributesToSnippet'  => ['content:7'],
         ];
 
-        $transport = new Varien_Object($indexSettings);
+        $transport = new \Maho\DataObject($indexSettings);
         Mage::dispatchEvent('meilisearch_blog_index_before_set_settings', ['store_id' => $storeId, 'index_settings' => $transport]);
 
         return $transport->getData();
@@ -78,7 +83,7 @@ class Meilisearch_Search_Helper_Entity_Bloghelper extends Meilisearch_Search_Hel
                 $object['image_url'] = rtrim(Mage::getBaseUrl('media'), '/') . '/blog/post/image/' . ltrim($image, '/');
             }
 
-            $transport = new Varien_Object($object);
+            $transport = new \Maho\DataObject($object);
             Mage::dispatchEvent('meilisearch_after_create_blog_post_object', ['post_object' => $transport, 'post' => $post]);
             $posts[] = $transport->getData();
         }

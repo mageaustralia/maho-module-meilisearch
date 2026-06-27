@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 class Meilisearch_Search_Block_Adminhtml_Indexingqueue_Status extends Mage_Adminhtml_Block_Template
 {
     public const CRON_QUEUE_FREQUENCY = 330;

@@ -26,7 +26,7 @@ class Meilisearch_Search_Helper_Entity_Faqhelper extends Meilisearch_Search_Help
             'displayedAttributes'  => ['objectID', 'category', 'category_url', 'question', 'answer', 'url'],
         ];
 
-        $transport = new Varien_Object($indexSettings);
+        $transport = new \Maho\DataObject($indexSettings);
         Mage::dispatchEvent('meilisearch_faqs_index_before_set_settings', [
             'store_id'       => $storeId,
             'index_settings' => $transport,
@@ -57,7 +57,7 @@ class Meilisearch_Search_Helper_Entity_Faqhelper extends Meilisearch_Search_Help
         $categories = Mage::getModel('mageaustralia_faq/category')->getCollection();
         $categories->addStoreFilter($storeId)
             ->addFieldToFilter('status', Mageaustralia_Faq_Model_Status::STATUS_ENABLED)
-            ->setOrder('sort_order', Varien_Data_Collection::SORT_ORDER_ASC);
+            ->setOrder('sort_order', \Maho\Data\Collection::SORT_ORDER_ASC);
 
         $cmsHelper = Mage::helper('cms');
         $tmplProc  = $cmsHelper->getPageTemplateProcessor();
@@ -70,7 +70,7 @@ class Meilisearch_Search_Helper_Entity_Faqhelper extends Meilisearch_Search_Help
             $faqCollection->addStoreFilter($storeId)
                 ->addFieldToFilter('status', Mageaustralia_Faq_Model_Status::STATUS_ENABLED)
                 ->addFieldToFilter('category_id', (int) $category->getId())
-                ->setOrder('sort_order', Varien_Data_Collection::SORT_ORDER_ASC);
+                ->setOrder('sort_order', \Maho\Data\Collection::SORT_ORDER_ASC);
 
             if ($faqIds && count($faqIds) > 0) {
                 $faqCollection->addFieldToFilter('entity_id', ['in' => array_map('intval', $faqIds)]);
@@ -97,7 +97,7 @@ class Meilisearch_Search_Helper_Entity_Faqhelper extends Meilisearch_Search_Help
                     'url'          => Mage::getBaseUrl() . 'faq/' . $category->getUrlKey() . '/#' . $slug,
                 ];
 
-                $transport = new Varien_Object($faqObject);
+                $transport = new \Maho\DataObject($faqObject);
                 Mage::dispatchEvent('meilisearch_after_create_faq_object', [
                     'faq'       => $transport,
                     'faqObject' => $faq,

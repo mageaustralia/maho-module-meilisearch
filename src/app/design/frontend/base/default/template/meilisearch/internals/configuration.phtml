@@ -1,4 +1,9 @@
 <?php
+
+/**
+ * SPDX-License-Identifier: AFL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
 /**
  * Meilisearch Configuration Template
  * Sets up the global JavaScript configuration for frontend search
@@ -156,9 +161,20 @@ if (is_array($autocompleteSections)) {
 // Debug: Final check
 echo "<!-- DEBUG: Final BaseUrl before config = " . htmlspecialchars($baseUrl) . " -->\n";
 echo "<!-- DEBUG: ServerUrl will be = " . htmlspecialchars($baseUrl . '/meilisearch') . " -->\n";
+// Hybrid / semantic search args, emitted only when admin has it enabled.
+// JS spreads these into search calls so the keyword path stays identical
+// when semantic is off (no `hybrid` key in the request = pure BM25 path).
+$semanticAutocomplete = $config->shouldApplySemanticToAutocomplete($storeId)
+    ? $config->getHybridQueryArgs($storeId)
+    : null;
+$semanticInstant = $config->shouldApplySemanticToInstant($storeId)
+    ? $config->getHybridQueryArgs($storeId)
+    : null;
+
 $meilisearchJsConfig = array(
     'instant' => array(
         'enabled' => $config->isInstantEnabled(),
+        'hybrid' => $semanticInstant,
         'infiniteScrollEnabled' => $config->isInfiniteScrollEnabled(),
         'selector' => $config->getInstantSelector(),
         'isAddToCartEnabled' => $config->isAddToCartEnable(),
@@ -171,6 +187,7 @@ $meilisearchJsConfig = array(
     ),
     'autocomplete' => array(
         'enabled' => $config->isAutoCompleteEnabled(),
+        'hybrid' => $semanticAutocomplete,
         'selector' => $config->getAutocompleteSelector(),
         'sections' => $autocompleteSections,
         'nbOfProductsSuggestions' => $config->getNumberOfProductsSuggestions(),
@@ -187,7 +204,13 @@ $meilisearchJsConfig = array(
         'isDebugEnabled' => $config->isAutocompleteDebugEnabled(),
     ),
     'extensionVersion' => $config->getExtensionVersion(),
-    'serverUrl' => $config->getServerUrl($storeId), // Meilisearch API server URL
+    // Use the storefront-side proxy URL (storefront base + the configured
+    // /meilisearch path) rather than the raw `meilisearch/credentials/server_url`.
+    // The raw config value is the upstream Meilisearch host the PHP indexer
+    // talks to (e.g. http://localhost:7700), which the browser cannot reach.
+    // The Meilisearch frontController proxies the storefront's /meilisearch/*
+    // path to the upstream host with auth attached.
+    'serverUrl' => $baseUrl . $config->getSearchResultsUrl($storeId),
     // Search-only API key for the browser. Falls back to the master key
     // when no read-only key is configured (master is fine for dev; in
     // production a search-only tenant token should be set so the
@@ -264,7 +287,7 @@ $meilisearchJsConfig = array(
 );
 
 // Allow extension via events
-$transport = new Varien_Object($meilisearchJsConfig);
+$transport = new \Maho\DataObject($meilisearchJsConfig);
 Mage::dispatchEvent('meilisearch_after_create_configuration', array('configuration' => $transport));
 $meilisearchJsConfig = $transport->getData();
 

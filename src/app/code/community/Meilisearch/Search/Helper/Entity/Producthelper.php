@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+
 
 class Meilisearch_Search_Helper_Entity_Producthelper extends Meilisearch_Search_Helper_Entity_Helper
 {
@@ -193,9 +198,9 @@ class Meilisearch_Search_Helper_Entity_Producthelper extends Meilisearch_Search_
             $products->addPriceData();
 
             if ($only_visible === false) {
-                $fromPart = $products->getSelect()->getPart(Varien_Db_Select::FROM);
+                $fromPart = $products->getSelect()->getPart(\Maho\Db\Select::FROM);
                 $fromPart['price_index']['joinType'] = 'left join';
-                $products->getSelect()->setPart(Varien_Db_Select::FROM, $fromPart);
+                $products->getSelect()->setPart(\Maho\Db\Select::FROM, $fromPart);
             }
         }
 
@@ -339,7 +344,7 @@ class Meilisearch_Search_Helper_Entity_Producthelper extends Meilisearch_Search_
         ];
 
         // Additional index settings from event observer
-        $transport = new Varien_Object($indexSettings);
+        $transport = new \Maho\DataObject($indexSettings);
         Mage::dispatchEvent('meilisearch_index_settings_prepare', ['store_id' => $storeId, 'index_settings' => $transport]); // Only for backward compatibility
         Mage::dispatchEvent('meilisearch_products_index_before_set_settings', ['store_id' => $storeId, 'index_settings' => $transport]);
         $indexSettings = $transport->getData();
@@ -467,7 +472,12 @@ class Meilisearch_Search_Helper_Entity_Producthelper extends Meilisearch_Search_
 
         if ($this->config->isEnabledSynonyms($storeId) === true) {
             if ($synonymsFile = $this->config->getSynonymsFile($storeId)) {
-                $synonymsToSet = json_decode(file_get_contents($synonymsFile));
+                try {
+                    $synonymsToSet = Mage::helper('core')->jsonDecode((string) file_get_contents($synonymsFile));
+                } catch (JsonException $e) {
+                    Mage::log('Invalid JSON in synonyms file ' . $synonymsFile . ': ' . $e->getMessage(), Mage::LOG_WARNING, 'meilisearch.log');
+                    $synonymsToSet = [];
+                }
             } else {
                 $synonymsToSet = [];
 
@@ -790,7 +800,7 @@ class Meilisearch_Search_Helper_Entity_Producthelper extends Meilisearch_Search_
 
         $defaultData = [];
 
-        $transport = new Varien_Object($defaultData);
+        $transport = new \Maho\DataObject($defaultData);
         Mage::dispatchEvent('meilisearch_product_index_before', ['product' => $product, 'custom_data' => $transport]);
         $defaultData = $transport->getData();
 
@@ -1168,7 +1178,7 @@ class Meilisearch_Search_Helper_Entity_Producthelper extends Meilisearch_Search_
         }
 
         // Only for backward compatibility
-        $transport = new Varien_Object($customData);
+        $transport = new \Maho\DataObject($customData);
         Mage::dispatchEvent('meilisearch_subproducts_index', ['custom_data' => $transport, 'sub_products' => $sub_products, 'productObject' => $product]);
         $customData = $transport->getData();
 
@@ -1205,7 +1215,7 @@ class Meilisearch_Search_Helper_Entity_Producthelper extends Meilisearch_Search_
 
         $customData = $this->clearNoValues($customData);
 
-        $transport = new Varien_Object($customData);
+        $transport = new \Maho\DataObject($customData);
         Mage::dispatchEvent('meilisearch_after_create_product_object', ['product_data' => $transport, 'sub_products' => $sub_products, 'productObject' => $product]);
         $customData = $transport->getData();
 
