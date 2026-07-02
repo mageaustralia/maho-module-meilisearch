@@ -21,6 +21,16 @@
         return d.innerHTML.replace(/"/g, '&quot;');
     }
 
+    // Meilisearch filter clause that hides products restricted from the current
+    // customer group. `restricted_customer_group_ids` holds the group IDs a
+    // product must NOT be shown to; a `!=` filter also passes docs where the
+    // field is missing or empty, so unrestricted products are unaffected.
+    // Contributed by the meilisearch_product_restrictions server-side event.
+    function groupRestrictionFilter() {
+        var gid = (config && typeof config.customerGroupId === 'number') ? config.customerGroupId : 0;
+        return 'restricted_customer_group_ids != ' + gid;
+    }
+
     // ── Click tracking ────────────────────────────────────────────────
     //
     // POSTs each click on a search/autocomplete result to the module's
@@ -226,7 +236,8 @@
             if (nProducts > 0) {
                 var acProductParams = {
                     limit: nProducts,
-                    attributesToHighlight: ['name']
+                    attributesToHighlight: ['name'],
+                    filter: groupRestrictionFilter()
                 };
                 // Hybrid blend if admin has it on for autocomplete. `hybrid`
                 // being absent (rather than null/false) keeps the request
@@ -636,6 +647,7 @@
             if (config.isCategoryPage && config.request.path) {
                 filters.push('categories.level' + config.request.level + ' = "' + config.request.path + '"');
             }
+            filters.push(groupRestrictionFilter());
             if (filters.length) searchParams.filter = filters.join(' AND ');
 
             // Hybrid blend for the main results page. Skipped for sort indexes
