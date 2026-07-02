@@ -229,6 +229,7 @@ $meilisearchJsConfig = array(
     'isCategoryPage' => $isCategoryPage,
     'removeBranding' => true,
     'priceKey' => $priceKey,
+    'customerGroupId' => (int) $customerGroupId, // used to filter out group-restricted products
     'currencyCode' => $currencyCode,
     'currencySymbol' => $currencySymbol,
     'priceFormat' => Mage::app()->getLocale()->getJsPriceFormat(),

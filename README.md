@@ -166,9 +166,37 @@ If you proxy `/meilisearch/` directly to your Meilisearch server in nginx (commo
 | `catalog_product_save_before` | `saveProduct` | Queues product for re-indexing |
 | `admin_system_config_changed_section_meilisearch` | `configSaved` | Pushes updated settings to Meilisearch indexes |
 
+## Extension Points
+
+Events **dispatched** by this module for other modules to hook into:
+
+| Event | Args | Purpose |
+|-------|------|---------|
+| `meilisearch_product_restrictions` | `product`, `store_id`, `transport` | Per-product, per-store hook to declare which customer groups must **not** see a product. Subscribers push integer group IDs onto `transport`'s `restricted_customer_group_ids` array; the indexer unions them into the `restricted_customer_group_ids` field on the product document, and the storefront search filters with `restricted_customer_group_ids != <currentGroupId>`. A product no subscriber touches gets an empty array and is shown to everyone. |
+| `meilisearch_after_create_product_object` | `product_data`, `sub_products`, `productObject` | General-purpose hook to add or mutate arbitrary fields on a product document before indexing. |
+
+Example subscriber (a B2B access / group-catalog module):
+
+```php
+public function addGroupRestrictions(Varien_Event_Observer $observer): void
+{
+    $product   = $observer->getProduct();
+    $storeId   = (int) $observer->getStoreId();
+    $transport = $observer->getTransport();
+
+    // ... resolve which groups are forbidden this product in this store ...
+    $forbidden = $transport->getData('restricted_customer_group_ids');
+    $forbidden = array_merge($forbidden, [1, 4, 17]); // NOT LOGGED IN + wholesale + ...
+    $transport->setData('restricted_customer_group_ids', $forbidden);
+}
+```
+
+The frontend already sends the current customer group with every search, so
+no storefront work is required — install the subscriber, reindex, done.
+
 ## Filterable Attributes
 
-After a full reindex, the following attributes are configured as filterable in Meilisearch by default: `categories`, `categories_without_path`, `category_ids`, `price`, plus any attributes configured in the Facets setting.
+After a full reindex, the following attributes are configured as filterable in Meilisearch by default: `categories`, `categories_without_path`, `category_ids`, `price`, `restricted_customer_group_ids`, plus any attributes configured in the Facets setting.
 
 If you add new filterable attributes in config, run a full reindex to push the updated `filterableAttributes` settings to Meilisearch.
 

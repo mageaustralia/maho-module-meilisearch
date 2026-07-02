@@ -309,6 +309,11 @@ class Meilisearch_Search_Helper_Entity_Producthelper extends Meilisearch_Search_
         if (!in_array('status', $attributesForFaceting, true)) {
             $attributesForFaceting[] = 'status';
         }
+        // Always filterable so the frontend can exclude products restricted to
+        // other customer groups (see meilisearch_product_restrictions event).
+        if (!in_array('restricted_customer_group_ids', $attributesForFaceting, true)) {
+            $attributesForFaceting[] = 'restricted_customer_group_ids';
+        }
 
         // Build displayed attributes list (all attributes except those marked as non-retrievable)
         $allAttributes = $this->getAllAttributeNames($storeId);
@@ -1215,6 +1220,13 @@ class Meilisearch_Search_Helper_Entity_Producthelper extends Meilisearch_Search_
 
         $customData = $this->clearNoValues($customData);
 
+        // Customer-group visibility restrictions. Any gating module (b2b-access,
+        // contract pricing, embargo lists, ...) can subscribe and contribute the
+        // customer-group IDs that must NOT see this product. The frontend filters
+        // with `restricted_customer_group_ids != <currentGroupId>`, so a doc with
+        // an empty array (no rule touches it) is returned to everyone unchanged.
+        $customData['restricted_customer_group_ids'] = $this->getProductRestrictions($product);
+
         $transport = new \Maho\DataObject($customData);
         Mage::dispatchEvent('meilisearch_after_create_product_object', ['product_data' => $transport, 'sub_products' => $sub_products, 'productObject' => $product]);
         $customData = $transport->getData();
@@ -1222,6 +1234,35 @@ class Meilisearch_Search_Helper_Entity_Producthelper extends Meilisearch_Search_
         $this->logger->stop('CREATE RECORD ' . $product->getId() . ' ' . $this->logger->getStoreName($product->storeId));
 
         return $customData;
+    }
+
+    /**
+     * Collect the customer-group IDs that must not see this product, from every
+     * subscriber of the `meilisearch_product_restrictions` event.
+     *
+     * Subscribers push integer group IDs onto the transport's
+     * `restricted_customer_group_ids` array; this method unions and de-duplicates
+     * them. With no subscribers the result is an empty array, which the frontend
+     * filter treats as "unrestricted".
+     *
+     * @return int[]
+     */
+    public function getProductRestrictions(Mage_Catalog_Model_Product $product)
+    {
+        $transport = new \Maho\DataObject(['restricted_customer_group_ids' => []]);
+
+        Mage::dispatchEvent('meilisearch_product_restrictions', [
+            'product'   => $product,
+            'store_id'  => (int) $product->getStoreId(),
+            'transport' => $transport,
+        ]);
+
+        $groupIds = $transport->getData('restricted_customer_group_ids');
+        if (!is_array($groupIds) || empty($groupIds)) {
+            return [];
+        }
+
+        return array_values(array_unique(array_map('intval', $groupIds)));
     }
 
     /**
@@ -1237,6 +1278,7 @@ class Meilisearch_Search_Helper_Entity_Producthelper extends Meilisearch_Search_
             'objectID', 'name', 'url', 'visibility_search', 'visibility_catalog',
             'categories', 'categories_without_path', 'category_ids', 'thumbnail_url', 'small_image_url', 'image_url',
             'in_stock', 'sku', 'price', 'sort_price', 'created_at', 'type_id',
+            'restricted_customer_group_ids',
         ];
 
         // Add conditional attributes only if they're enabled
