@@ -25,7 +25,7 @@
     // customer group. `restricted_customer_group_ids` holds the group IDs a
     // product must NOT be shown to; a `!=` filter also passes docs where the
     // field is missing or empty, so unrestricted products are unaffected.
-    // Contributed by the meilisearch_product_restrictions server-side event.
+    // Contributed by the catalog_search_product_restrictions server-side event.
     function groupRestrictionFilter() {
         var gid = (config && typeof config.customerGroupId === 'number') ? config.customerGroupId : 0;
         return 'restricted_customer_group_ids != ' + gid;

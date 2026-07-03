@@ -310,7 +310,7 @@ class Meilisearch_Search_Helper_Entity_Producthelper extends Meilisearch_Search_
             $attributesForFaceting[] = 'status';
         }
         // Always filterable so the frontend can exclude products restricted to
-        // other customer groups (see meilisearch_product_restrictions event).
+        // other customer groups (see catalog_search_product_restrictions event).
         if (!in_array('restricted_customer_group_ids', $attributesForFaceting, true)) {
             $attributesForFaceting[] = 'restricted_customer_group_ids';
         }
@@ -1238,7 +1238,8 @@ class Meilisearch_Search_Helper_Entity_Producthelper extends Meilisearch_Search_
 
     /**
      * Collect the customer-group IDs that must not see this product, from every
-     * subscriber of the `meilisearch_product_restrictions` event.
+     * subscriber of the engine-neutral `catalog_search_product_restrictions`
+     * event (shared with maho-search and any other search backend).
      *
      * Subscribers push integer group IDs onto the transport's
      * `restricted_customer_group_ids` array; this method unions and de-duplicates
@@ -1251,7 +1252,7 @@ class Meilisearch_Search_Helper_Entity_Producthelper extends Meilisearch_Search_
     {
         $transport = new \Maho\DataObject(['restricted_customer_group_ids' => []]);
 
-        Mage::dispatchEvent('meilisearch_product_restrictions', [
+        Mage::dispatchEvent('catalog_search_product_restrictions', [
             'product'   => $product,
             'store_id'  => (int) $product->getStoreId(),
             'transport' => $transport,
