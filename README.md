@@ -172,7 +172,7 @@ Events **dispatched** by this module for other modules to hook into:
 
 | Event | Args | Purpose |
 |-------|------|---------|
-| `meilisearch_product_restrictions` | `product`, `store_id`, `transport` | Per-product, per-store hook to declare which customer groups must **not** see a product. Subscribers push integer group IDs onto `transport`'s `restricted_customer_group_ids` array; the indexer unions them into the `restricted_customer_group_ids` field on the product document, and the storefront search filters with `restricted_customer_group_ids != <currentGroupId>`. A product no subscriber touches gets an empty array and is shown to everyone. |
+| `catalog_search_product_restrictions` | `product`, `store_id`, `transport` | Engine-neutral, per-product, per-store hook to declare which customer groups must **not** see a product (shared with maho-search and any other search backend, so a gating module subscribes once). Subscribers push integer group IDs onto `transport`'s `restricted_customer_group_ids` array; the indexer unions them into the `restricted_customer_group_ids` field on the product document, and the storefront search filters with `restricted_customer_group_ids != <currentGroupId>`. A product no subscriber touches gets an empty array and is shown to everyone. |
 | `meilisearch_after_create_product_object` | `product_data`, `sub_products`, `productObject` | General-purpose hook to add or mutate arbitrary fields on a product document before indexing. |
 
 Example subscriber (a B2B access / group-catalog module):
