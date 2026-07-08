@@ -12,6 +12,15 @@ class Meilisearch_Search_Helper_Entity_Barcodeshelper extends Meilisearch_Search
     /** @var Meilisearch_Search_Helper_Config */
     protected $config;
 
+    /**
+     * Cache of loaded configurable parent products, keyed by "storeId-parentId".
+     * Collapses one full product load per child down to one per unique
+     * configurable across the whole reindex run.
+     *
+     * @var array
+     */
+    protected $_parentCache = [];
+
     public function __construct()
     {
         parent::__construct();
@@ -93,8 +102,18 @@ class Meilisearch_Search_Helper_Entity_Barcodeshelper extends Meilisearch_Search
                 ->getParentIdsByChild($product->getId());
 
             if (!empty($parentIds)) {
-                // Load the first parent (configurable)
-                $parent = Mage::getModel('catalog/product')->setStoreId($storeId)->load($parentIds[0]);
+                // Load the first parent (configurable), reusing an already-loaded parent
+                // so each configurable is loaded once instead of once per child. Without
+                // this, a full-catalog barcode reindex issues a complete product load per
+                // simple-with-parent (a configurable with 6 sizes reloads its parent 6
+                // times), which dominates the reindex runtime and database load.
+                $parentId = $parentIds[0];
+                $cacheKey = $storeId . '-' . $parentId;
+                if (!isset($this->_parentCache[$cacheKey])) {
+                    $this->_parentCache[$cacheKey] = Mage::getModel('catalog/product')
+                        ->setStoreId($storeId)->load($parentId);
+                }
+                $parent = $this->_parentCache[$cacheKey];
                 if ($parent->getId() && $parent->isVisibleInSiteVisibility()) {
                     $productToUse = $parent;
                 }
@@ -151,9 +170,18 @@ class Meilisearch_Search_Helper_Entity_Barcodeshelper extends Meilisearch_Search
         $imageHelper = Mage::helper('meilisearch_search/image');
 
         try {
-            $image = $imageHelper->init($productToUse, $this->config->getImageType())
-                         ->resize($this->config->getImageWidth(), $this->config->getImageHeight());
-            $imageUrl = $image->toString();
+            // Only use the resized image if it is ALREADY cached on disk. Do NOT generate
+            // it here: this index covers the full catalog (incl. disabled / out-of-stock /
+            // no-image products), so live GD generation for every cache-miss was a large
+            // part of this reindex's runtime. Missing thumbnails fall back to the
+            // placeholder and are generated lazily on the first real front-end request.
+            $imageHelper->init($productToUse, $this->config->getImageType())
+                        ->resize($this->config->getImageWidth(), $this->config->getImageHeight());
+            $imageUrl = $imageHelper->toStringIfCached();
+            if ($imageUrl === null) {
+                $placeholderUrl = Mage::getDesign()->getSkinUrl($imageHelper->init($productToUse, $this->config->getImageType())->getPlaceholder());
+                $imageUrl = $imageHelper->removeProtocol($placeholderUrl);
+            }
         } catch (Exception) {
             // Use placeholder image if product image is not available
             $placeholderUrl = Mage::getDesign()->getSkinUrl($imageHelper->init($productToUse, $this->config->getImageType())->getPlaceholder());

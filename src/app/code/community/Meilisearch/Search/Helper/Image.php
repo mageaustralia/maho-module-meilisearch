@@ -55,6 +55,32 @@ class Meilisearch_Search_Helper_Image extends Mage_Catalog_Helper_Image
         return $this->removeProtocol($model->saveFile()->getUrl());
     }
 
+    /**
+     * Return the resized image URL ONLY if it is already cached on disk.
+     * Never triggers GD generation. Returns null on a cache miss so the caller
+     * can fall back to a placeholder. Used by the barcode reindex so it does not
+     * generate thousands of thumbnails (incl. for disabled / no-image products)
+     * at cron time.
+     *
+     * @return string|null
+     */
+    public function toStringIfCached()
+    {
+        $model = $this->_getModel();
+
+        if ($this->getImageFile()) {
+            $model->setBaseFile($this->getImageFile());
+        } else {
+            $model->setBaseFile($this->getProduct()->getData($model->getDestinationSubdir()));
+        }
+
+        if ($model->isCached()) {
+            return $this->removeProtocol($model->getUrl());
+        }
+
+        return null;
+    }
+
     public function removeProtocol($url)
     {
         return str_replace(['https://', 'http://'], '//', $url);
