@@ -10,6 +10,19 @@ require_once dirname(__FILE__, 2) . '/Model/Autoloader.php';
 
 class Meilisearch_Search_Helper_Meilisearchhelper extends Mage_Core_Helper_Abstract
 {
+    /**
+     * How long to wait for a Meilisearch task to finish.
+     *
+     * The SDK defaults to 5 seconds, which is far too short for indexing tasks on
+     * a large catalogue -- and shorter still when an embedder is configured, since
+     * Meilisearch generates vectors before the task settles. A full reindex that
+     * gives up here leaves a half-built tmp index behind.
+     */
+    private const TASK_WAIT_TIMEOUT_MS = 900_000;
+
+    /** Poll interval while waiting. 50ms (the SDK default) is needless request churn. */
+    private const TASK_POLL_INTERVAL_MS = 500;
+
     /** @var \Meilisearch\Client */
     protected $client;
 
@@ -69,8 +82,8 @@ class Meilisearch_Search_Helper_Meilisearchhelper extends Mage_Core_Helper_Abstr
     protected function waitForTask($taskOrUid)
     {
         if (is_object($taskOrUid) && method_exists($taskOrUid, 'wait')) {
-            $taskOrUid->wait();
-            return method_exists($taskOrUid, 'toArray') ? $taskOrUid->toArray() : null;
+            $task = $taskOrUid->wait(self::TASK_WAIT_TIMEOUT_MS, self::TASK_POLL_INTERVAL_MS);
+            return method_exists($task, 'toArray') ? $task->toArray() : null;
         }
 
         $uid = $this->extractTaskUid($taskOrUid);
@@ -81,17 +94,16 @@ class Meilisearch_Search_Helper_Meilisearchhelper extends Mage_Core_Helper_Abstr
             return null;
         }
 
-        // Client-level waitForTask is available on all supported SDK versions.
-        try {
-            $task = $this->client->waitForTask($uid);
-            if (is_object($task) && method_exists($task, 'toArray')) {
-                return $task->toArray();
-            }
-            return is_array($task) ? $task : null;
-        } catch (\Exception $e) {
-            Mage::log('Meilisearch waitForTask failed for uid ' . $uid . ': ' . $e->getMessage(), null, 'meilisearch_error.log');
-            return null;
-        }
+        // The SDK exposes no Client::waitForTask(). Fetch the task and wait on it.
+        //
+        // Exceptions deliberately propagate. A timeout here means we do not know
+        // whether the documents landed, and the caller may be about to promote a
+        // tmp index over the live one -- swallowing it would swap in a partial
+        // index and silently drop products from search.
+        $task = $this->client->getTask((int) $uid);
+        $task = $task->wait(self::TASK_WAIT_TIMEOUT_MS, self::TASK_POLL_INTERVAL_MS);
+
+        return method_exists($task, 'toArray') ? $task->toArray() : null;
     }
 
     /**
