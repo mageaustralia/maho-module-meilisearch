@@ -52,8 +52,10 @@ class Meilisearch_Search_Model_Observer
 
         foreach (Mage::app()->getStores() as $store) {/* @var $store Mage_Core_Model_Store */
             if ($store->getIsActive()) {
-                $saveToTmpIndicesToo = ($isFullProductReindex && $this->config->isQueueActive($store->getId()));
-                $this->helper->saveConfigurationToMeilisearch($store->getId(), $saveToTmpIndicesToo);
+                // A full reindex always builds a tmp index (see Engine::rebuildProducts),
+                // so the tmp index always needs the settings too. Gating this on the
+                // queue left the tmp index unconfigured whenever the queue was off.
+                $this->helper->saveConfigurationToMeilisearch($store->getId(), (bool) $isFullProductReindex);
             }
         }
     }

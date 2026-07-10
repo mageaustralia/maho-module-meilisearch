@@ -269,12 +269,19 @@ class Meilisearch_Search_Model_Resource_Engine extends Mage_CatalogSearch_Model_
             }
 
             if ($store->getIsActive()) {
-                $useTmpIndex = $this->config->isQueueActive($storeId);
-                $this->_rebuildProductIndex($storeId, [], $useTmpIndex);
-
-                if ($this->config->isQueueActive($storeId)) {
-                    $this->addToQueue('meilisearch_search/observer', 'moveProductsTmpIndex', ['store_id' => $storeId], 1);
-                }
+                // A full rebuild always populates a fresh tmp index and swaps it in.
+                //
+                // Writing straight into the live index only ever adds or overwrites
+                // documents, so anything that has since left the collection - deleted,
+                // disabled, unassigned from the website, or re-created under a new
+                // entity_id - keeps its document and stays searchable. Previously the
+                // tmp index was used only when the queue happened to be active, which
+                // made correctness of a reindex depend on an unrelated setting.
+                //
+                // addToQueue() dispatches synchronously when the queue is off, so the
+                // swap still lands after the pages have been written either way.
+                $this->_rebuildProductIndex($storeId, [], true);
+                $this->addToQueue('meilisearch_search/observer', 'moveProductsTmpIndex', ['store_id' => $storeId], 1);
             } else {
                 $this->addToQueue(
                     'meilisearch_search/observer',
