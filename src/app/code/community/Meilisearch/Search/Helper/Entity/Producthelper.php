@@ -216,11 +216,6 @@ class Meilisearch_Search_Helper_Entity_Producthelper extends Meilisearch_Search_
         $unretrievableAttributes = [];
         $attributesForFaceting = [];
 
-        // Always add configured barcode attribute and child barcodes as searchable (for POS barcode scanning)
-        $barcodeAttributeCode = Mage::helper('core')->isModuleEnabled('Maho_Pos') ? Mage::helper('maho_pos')->getBarcodeAttributeCode() : 'gtin';
-        $searchableAttributes[] = $barcodeAttributeCode;
-        $searchableAttributes[] = 'child_' . $barcodeAttributeCode;
-
         foreach ($this->config->getProductAdditionalAttributes($storeId) as $attribute) {
             if ($attribute['searchable'] == '1') {
                 if ($attribute['order'] == 'ordered') {
@@ -240,6 +235,15 @@ class Meilisearch_Search_Helper_Entity_Producthelper extends Meilisearch_Search_
             //     $searchableAttributes[] = $attribute['order'] == 'ordered' ? 'categories_without_path' : 'unordered(categories_without_path)';
             // }
         }
+
+        // Barcode and child barcodes stay searchable so a POS scan resolves a
+        // product, but they belong at the END of the list. Meilisearch treats
+        // searchableAttributes order as ranking priority, so putting them first
+        // made a barcode field match outrank a product-name match on every
+        // storefront query.
+        $barcodeAttributeCode = Mage::helper('core')->isModuleEnabled('Maho_Pos') ? Mage::helper('maho_pos')->getBarcodeAttributeCode() : 'gtin';
+        $searchableAttributes[] = $barcodeAttributeCode;
+        $searchableAttributes[] = 'child_' . $barcodeAttributeCode;
 
         $customRankings = $this->config->getProductCustomRanking($storeId);
 
