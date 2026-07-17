@@ -849,27 +849,32 @@ class Meilisearch_Search_Helper_Data extends Mage_Core_Helper_Abstract
                 );
             }
 
-            // ordered_qty + total_ordered used to be emitted as correlated
-            // subqueries, which meant N full aggregations over sales_flat_order_item
-            // per reindex page (100 products = 100 full-table scans on a big sales
-            // history). A single LEFT JOIN onto a derived GROUP BY aggregates once
-            // and reuses the result for every row in the page.
+            // ordered_qty + total_ordered are correlated subqueries ON PURPOSE.
+            // product_id is indexed on sales_flat_order_item, so each row costs one
+            // small index dive (a product's own order items). The tempting
+            // alternative - one LEFT JOIN onto a derived
+            // (SELECT ... GROUP BY product_id) - aggregates the ENTIRE order-item
+            // table on EVERY collection load. That is ruinous for incremental
+            // reindexes (a stock change on one product re-aggregates all sales
+            // history, per website) and was observed saturating a shared DB server.
             $needsOrdered = $this->product_helper->isAttributeEnabled($additionalAttributes, 'ordered_qty');
             $needsTotal = $this->product_helper->isAttributeEnabled($additionalAttributes, 'total_ordered');
             if ($needsOrdered || $needsTotal) {
                 $orderItemTable = $index_prefix . 'sales_flat_order_item';
-                $aggregateSql = sprintf(
-                    '(SELECT product_id, SUM(qty_ordered) AS ordered_qty, SUM(row_total) AS total_ordered FROM %s GROUP BY product_id)',
-                    $orderItemTable,
-                );
-                $collection->getSelect()->joinLeft(
-                    ['msr_order_agg' => new \Maho\Db\Expr($aggregateSql)],
-                    'msr_order_agg.product_id = e.entity_id',
-                    array_filter([
-                        'ordered_qty' => $needsOrdered ? 'msr_order_agg.ordered_qty' : null,
-                        'total_ordered' => $needsTotal ? 'msr_order_agg.total_ordered' : null,
-                    ]),
-                );
+                $columns = [];
+                if ($needsOrdered) {
+                    $columns['ordered_qty'] = new \Maho\Db\Expr(sprintf(
+                        '(SELECT SUM(oi.qty_ordered) FROM %s AS oi WHERE oi.product_id = e.entity_id)',
+                        $orderItemTable,
+                    ));
+                }
+                if ($needsTotal) {
+                    $columns['total_ordered'] = new \Maho\Db\Expr(sprintf(
+                        '(SELECT SUM(oi.row_total) FROM %s AS oi WHERE oi.product_id = e.entity_id)',
+                        $orderItemTable,
+                    ));
+                }
+                $collection->getSelect()->columns($columns);
             }
 
             if ($this->product_helper->isAttributeEnabled($additionalAttributes, 'rating_summary')) {
