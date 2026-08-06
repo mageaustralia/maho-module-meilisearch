@@ -117,8 +117,14 @@ class Meilisearch_Search_AjaxController extends Mage_Core_Controller_Front_Actio
             $searchQuery->setStoreId($storeId);
             $searchQuery->loadByQuery($query);
             if (!$searchQuery->getId()) {
+                /*
+                 * setStoreId() must not appear mid-chain. Mage_CatalogSearch_Model_Query
+                 * overrides it and returns void rather than $this -- the one non-fluent
+                 * setter on the model -- so the next call in the chain landed on null and
+                 * fatalled. Core calls it as a standalone statement for the same reason.
+                 */
+                $searchQuery->setStoreId($storeId);
                 $searchQuery->setQueryText($query)
-                    ->setStoreId($storeId)
                     ->setNumResults(0)
                     ->setPopularity(0);
             }
@@ -129,7 +135,11 @@ class Meilisearch_Search_AjaxController extends Mage_Core_Controller_Front_Actio
             $this->getResponse()
                 ->setHeader('Content-Type', 'application/json')
                 ->setBody('{"ok":true}');
-        } catch (Exception $e) {
+            // Throwable, not Exception: a PHP Error is not an Exception, so the fatal
+            // above bypassed this handler and surfaced as an uncaught 500 instead of
+            // being logged. Click tracking is analytics -- it must never take down
+            // the request that triggered it.
+        } catch (Throwable $e) {
             Mage::logException($e);
             $this->getResponse()->setHttpResponseCode(500);
         }
