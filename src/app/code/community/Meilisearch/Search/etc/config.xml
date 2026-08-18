@@ -131,6 +131,30 @@
                 </observers>
             </admin_system_config_changed_section_meilisearch>
 
+            <!--
+                Mass and inline attribute updates.
+
+                Mage_Catalog_Model_Product_Action::updateAttributes() writes at the resource
+                level and never loads or saves the product model, so catalog_product_save_before
+                does not fire and the real_time indexer never sees the change. Both the core
+                product grid mass actions (Change Status, Update Attributes) and
+                MageAustralia_AdminGrid inline editing go through it.
+
+                Without this, disabling a product from a grid left it live in search - findable
+                and clickable - until something unrelated happened to reindex it. Disabling from
+                the product edit page worked, so the behaviour depended entirely on which screen
+                was used.
+            -->
+            <catalog_product_attribute_update_after>
+                <observers>
+                    <meilisearch_search_attribute_update>
+                        <type>singleton</type>
+                        <class>meilisearch_search/observer</class>
+                        <method>productAttributeUpdated</method>
+                    </meilisearch_search_attribute_update>
+                </observers>
+            </catalog_product_attribute_update_after>
+
             <catalog_product_save_before>
                 <observers>
                     <meilisearch_stockupdate>

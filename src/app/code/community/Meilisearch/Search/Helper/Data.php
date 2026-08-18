@@ -801,7 +801,34 @@ class Meilisearch_Search_Helper_Data extends Mage_Core_Helper_Abstract
             $productsToIndex[$productId] = $this->product_helper->getObject($product);
         }
 
-        $productsToRemove = array_merge($productsToRemove, $potentiallyDeletedProductsIds);
+        // A product missing from the collection is NOT proof that it was deleted.
+        //
+        // The collection is filtered and joined (website, status, visibility, category,
+        // stock, rating). Anything that makes it under-return - most obviously the
+        // catalog_category_product reindex that runs every 15 minutes, during which the
+        // category tables are transiently incomplete - used to be read as "these products
+        // no longer exist" and purged.
+        //
+        // On 2026-08-19 that emptied the catalogue: the collection returned 505 of ~1,981
+        // products and the other 1,476 were deleted in a single call, taking the ball
+        // machines out of search for six hours.
+        //
+        // Confirm against catalog_product_entity before deleting anything. One query per
+        // batch, and it makes "deleted" mean deleted.
+        if (!empty($potentiallyDeletedProductsIds)) {
+            $removable = $this->filterToRemovableProductIds($potentiallyDeletedProductsIds, $storeId);
+            $kept = count($potentiallyDeletedProductsIds) - count($removable);
+
+            if ($kept > 0) {
+                $this->logger->log(sprintf(
+                    'SKIPPED REMOVAL of %d product(s): absent from the collection but still present and '
+                    . 'still indexable (the collection under-returned; they were not deleted or disabled).',
+                    $kept,
+                ));
+            }
+
+            $productsToRemove = array_merge($productsToRemove, $removable);
+        }
 
         $this->logger->stop('CREATE RECORDS ' . $this->logger->getStoreName($storeId));
 
@@ -810,6 +837,145 @@ class Meilisearch_Search_Helper_Data extends Mage_Core_Helper_Abstract
             'toRemove' => array_unique($productsToRemove),
         ];
     }
+    /**
+     * Batch size above which the per-product indexability check is skipped.
+     *
+     * A normal incremental pass has a handful of ids here. A batch this large means the
+     * collection under-returned, which is the failure this guard exists for - so the ids
+     * are kept rather than spending minutes proving what is already obvious.
+     */
+    /**
+     * Largest share of a live index one incremental pass may delete.
+     *
+     * A routine pass removes a handful of products. Anything approaching a fifth of the
+     * index means the caller decided most of the catalogue should go, which is never right
+     * for an incremental run - it means the input was wrong.
+     */
+    public const MAX_INCREMENTAL_REMOVAL_RATIO = 0.2;
+
+    /** Below this many documents the ratio is meaningless, so it is not applied. */
+    public const MIN_INDEX_SIZE_FOR_RATIO = 100;
+
+    /**
+     * Refuse a removal that would gut the index.
+     *
+     * Defence in depth behind filterToRemovableProductIds(): that fixes the known cause,
+     * this catches the next one. A blocked removal leaves stale documents in the index,
+     * which is visible and recoverable; a completed one takes the catalogue out of search
+     * until somebody notices - six hours, on 2026-08-19.
+     *
+     * @param array<int|string> $toRemove
+     */
+    public function isRemovalProportionate(array $toRemove, string $indexName): bool
+    {
+        try {
+            $indexed = (int) ($this->meilisearch_helper->getClient()->index($indexName)->stats()['numberOfDocuments'] ?? 0);
+        } catch (\Throwable $e) {
+            // Never block indexing because a stats call failed.
+            return true;
+        }
+
+        if ($indexed < self::MIN_INDEX_SIZE_FOR_RATIO) {
+            return true;
+        }
+
+        $limit = (int) ceil($indexed * self::MAX_INCREMENTAL_REMOVAL_RATIO);
+        if (count($toRemove) <= $limit) {
+            return true;
+        }
+
+        Mage::log(sprintf(
+            'REMOVAL BLOCKED for %s: asked to delete %d of %d documents (limit %d, %.0f%%). '
+            . 'An incremental pass never legitimately removes this much - treating the input as suspect. '
+            . 'Product IDs: %s',
+            $indexName,
+            count($toRemove),
+            $indexed,
+            $limit,
+            self::MAX_INCREMENTAL_REMOVAL_RATIO * 100,
+            implode(',', array_slice(array_map('strval', $toRemove), 0, 50)) . (count($toRemove) > 50 ? ',...' : ''),
+        ), Mage::LOG_WARNING, 'meilisearch_guard.log', true);
+
+        return false;
+    }
+
+    public const MAX_REMOVAL_VERIFY_BATCH = 200;
+
+    /**
+     * Of the ids missing from the collection, return those that genuinely should be removed.
+     *
+     * Absence from the collection has two very different causes and the old code conflated
+     * them, treating both as "deleted":
+     *
+     *   1. The product is gone, or is no longer indexable (disabled, hidden, out of stock
+     *      with out-of-stock indexing off). It SHOULD be removed.
+     *   2. The collection under-returned - most obviously while catalog_category_product is
+     *      being rebuilt, when the joins it depends on are transiently incomplete. Removing
+     *      these is what emptied the index on 2026-08-19: 1,476 live products deleted in one
+     *      call because the collection returned 505 of ~1,981.
+     *
+     * Existence alone cannot separate the two: a disabled product still exists and must
+     * still be removed. So ask the same question the indexer asks - canProductBeReindexed().
+     * Anything that fails it is removed as before; anything that passes is kept, because a
+     * product that should be indexed has no business being deleted just for missing a join.
+     *
+     * @param  array<int|string> $productIds
+     * @return array<int|string>
+     */
+    public function filterToRemovableProductIds(array $productIds, $storeId): array
+    {
+        $productIds = array_values(array_unique(array_filter(array_map('intval', $productIds))));
+        if (empty($productIds)) {
+            return [];
+        }
+
+        $resource = Mage::getSingleton('core/resource');
+        $connection = $resource->getConnection('core_read');
+
+        $existing = [];
+        foreach (array_chunk($productIds, 1000) as $chunk) {
+            $select = $connection->select()
+                ->from($resource->getTableName('catalog/product'), ['entity_id'])
+                ->where('entity_id IN (?)', $chunk);
+            $existing = array_merge($existing, array_map('intval', $connection->fetchCol($select)));
+        }
+
+        // Gone from the catalogue: unambiguous, remove.
+        $removable = array_values(array_diff($productIds, $existing));
+
+        if (empty($existing)) {
+            return $removable;
+        }
+
+        if (count($existing) > self::MAX_REMOVAL_VERIFY_BATCH) {
+            $this->logger->log(sprintf(
+                'NOT verifying %d still-present products for removal (over %d): a batch this large means the '
+                . 'collection under-returned, so they are kept.',
+                count($existing),
+                self::MAX_REMOVAL_VERIFY_BATCH,
+            ));
+
+            return $removable;
+        }
+
+        foreach ($existing as $productId) {
+            $product = Mage::getModel('catalog/product')->setStoreId($storeId)->load($productId);
+            if (!$product->getId()) {
+                $removable[] = $productId;
+                continue;
+            }
+
+            try {
+                $this->product_helper->canProductBeReindexed($product, $storeId);
+            } catch (Meilisearch_Search_Model_Exception_ProductReindexException) {
+                // Legitimately not indexable now - disabled, hidden, or out of stock.
+                $removable[] = $productId;
+            }
+        }
+
+        return array_values(array_unique($removable));
+    }
+
     public function rebuildStoreProductIndexPage($storeId, $collectionDefault, $page, $pageSize, $emulationInfo = null, $productIds = null, $useTmpIndex = false)
     {
         if ($this->config->isEnabledBackend($storeId) === false) {
@@ -918,7 +1084,14 @@ class Meilisearch_Search_Helper_Data extends Mage_Core_Helper_Abstract
                 $toRealRemove = [];
 
                 if (count($indexData['toRemove']) === 1) {
-                    $toRealRemove = $indexData['toRemove'];
+                    // array_values matters: toRemove is keyed by product id, so passing it
+                    // through unchanged makes json_encode emit an object ({"33019":"33019"})
+                    // where the API requires an array. Meilisearch answers 400 "invalid type:
+                    // map, expected a sequence", so removing exactly one product silently
+                    // never worked - which is why disabling a single product from a grid left
+                    // it searchable. The multi-product branch below rebuilds an indexed list
+                    // and was unaffected, so only single removals were broken.
+                    $toRealRemove = array_values($indexData['toRemove']);
                 } else {
                     $indexData['toRemove'] = array_map(strval(...), $indexData['toRemove']);
 
@@ -932,7 +1105,7 @@ class Meilisearch_Search_Helper_Data extends Mage_Core_Helper_Abstract
                     }
                 }
 
-                if (!empty($toRealRemove)) {
+                if (!empty($toRealRemove) && $this->isRemovalProportionate($toRealRemove, $indexName)) {
                     $this->logger->start('REMOVE FROM MEILISEARCH');
 
                     $this->meilisearch_helper->deleteObjects($toRealRemove, $indexName);

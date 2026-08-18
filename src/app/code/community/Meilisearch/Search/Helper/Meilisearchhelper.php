@@ -277,7 +277,7 @@ class Meilisearch_Search_Helper_Meilisearchhelper extends Mage_Core_Helper_Abstr
         $meilisearchSettings = $this->convertIndexSettings($settings);
 
         // Debug logging
-        Mage::log('Meilisearch settings for ' . $indexName . ': ' . Mage::helper('core')->jsonEncode($meilisearchSettings), null, 'meilisearch_debug.log');
+        Mage::helper('meilisearch_search/logger')->log('Meilisearch settings for ' . $indexName . ': ' . Mage::helper('core')->jsonEncode($meilisearchSettings));
 
         // Additional check for empty arrays that should be objects
         foreach ($meilisearchSettings as $key => &$value) {
@@ -340,8 +340,49 @@ class Meilisearch_Search_Helper_Meilisearchhelper extends Mage_Core_Helper_Abstr
         return $this->deleteObjects([$objectId], $indexName);
     }
 
+    /**
+     * Smallest tmp/live document ratio that may be published over a live products index.
+     *
+     * A complete rebuild lands within a few percent of the previous count, so anything
+     * materially smaller means the tmp was published before it finished building.
+     *
+     * This was 0.5, which was too permissive to be useful: on 2026-08-18 a stale swap job
+     * would have published a tmp holding 1300 documents over a live index of 1979 - a 34%
+     * loss, and 66% is well clear of a 50% floor. It had to be caught by hand. At 0.9 that
+     * swap is refused.
+     *
+     * The trade-off is deliberate. A genuine bulk disable of >10% of the catalogue will now
+     * be blocked, logged to meilisearch_guard.log and retried on a clean run, rather than
+     * silently emptying search. A blocked swap is visible and recoverable; a published
+     * partial index is neither.
+     */
+    public const MIN_SWAP_RATIO = 0.9;
+
     public function moveIndex($tmpIndexName, $indexName)
     {
+        // Safety guard (products only): refuse to swap a drastically smaller tmp over a
+        // healthy live products index. Concurrent reindexes share the single
+        // {store}_products_tmp; if one triggers the swap while the tmp is only partly built,
+        // most of the catalog (incl. high-value SKUs like ball machines) vanishes from search.
+        // If the tmp is suspiciously small vs live, abort and drop the tmp so a clean run can
+        // retry. Fails open when stats are unreadable so a reindex is never permanently blocked.
+        if (str_ends_with((string) $indexName, '_products')) {
+            try {
+                $tmpCount = (int) ($this->client->index($tmpIndexName)->stats()['numberOfDocuments'] ?? 0);
+                $liveCount = (int) ($this->client->index($indexName)->stats()['numberOfDocuments'] ?? 0);
+                if ($liveCount > 100 && $tmpCount < ($liveCount * self::MIN_SWAP_RATIO)) {
+                    Mage::log(sprintf(
+                        'moveIndex ABORTED for %s: tmp %s has %d docs vs live %d - refusing to shrink products index (would drop %d). Clearing tmp for clean retry.',
+                        $indexName, $tmpIndexName, $tmpCount, $liveCount, $liveCount - $tmpCount
+                    ), Mage::LOG_WARNING, 'meilisearch_guard.log', true);
+                    try { $this->client->deleteIndex($tmpIndexName); } catch (\Exception $e) {}
+                    return ['taskID' => 0];
+                }
+            } catch (\Throwable $e) {
+                // stats unreadable -> fail open (proceed with swap)
+            }
+        }
+
         // Use Meilisearch's native swap-indexes API (v0.30+).
         // Atomicity depends on waiting for the swap task to succeed BEFORE
         // deleting the (now-aliased-tmp) old index. Any prior silent no-op
@@ -405,7 +446,7 @@ class Meilisearch_Search_Helper_Meilisearchhelper extends Mage_Core_Helper_Abstr
 
         // Debug log the first object to check structure
         if (!empty($objects) && isset($objects[0])) {
-            Mage::log('First document being indexed: ' . Mage::helper('core')->jsonEncode($objects[0]), null, 'meilisearch_debug.log');
+            Mage::helper('meilisearch_search/logger')->log('First document being indexed: ' . Mage::helper('core')->jsonEncode($objects[0]));
         }
 
         // Meilisearch needs to know the primary key is 'objectID'

@@ -107,6 +107,44 @@ class Meilisearch_Search_Model_Observer
     }
 
     /**
+     * Re-evaluate products changed by a resource-level attribute write.
+     *
+     * @event catalog_product_attribute_update_after
+     *
+     * Fired by grid mass actions and by AdminGrid inline editing, neither of which touches
+     * the product model - so the real_time indexer would otherwise never run for them.
+     *
+     * reindexSpecificProducts() is the same entry point the indexer uses for a normal save.
+     * It resolves composite parents, and re-runs canProductBeReindexed(), so a product that
+     * has just been disabled or hidden is removed and one that has just been enabled is added.
+     */
+    public function productAttributeUpdated(\Maho\Event\Observer $observer)
+    {
+        if ($this->isIndexerInManualMode('meilisearch_search_indexer')) {
+            return;
+        }
+
+        $productIds = $observer->getEvent()->getProductIds();
+        $productIds = array_values(array_unique(array_filter(array_map('intval', (array) $productIds))));
+        if (empty($productIds)) {
+            return;
+        }
+
+        try {
+            Mage::getSingleton('meilisearch_search/indexer_meilisearch')->reindexSpecificProducts($productIds);
+        } catch (\Exception $e) {
+            // Never let an indexing failure abort the attribute write that triggered it.
+            Mage::log(
+                'Meilisearch: failed to reindex after attribute update for product ids '
+                . implode(',', array_slice($productIds, 0, 50)) . ': ' . $e->getMessage(),
+                Mage::LOG_ERR,
+                'meilisearch_guard.log',
+                true,
+            );
+        }
+    }
+
+    /**
      * @event cms_page_save_commit_after
      */
     public function savePage(\Maho\Event\Observer $observer)

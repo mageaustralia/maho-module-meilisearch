@@ -1,10 +1,5 @@
 <?php
 
-/**
- * SPDX-License-Identifier: OSL-3.0
- * Copyright (c) 2026 Mageaus.
- */
-
 class Meilisearch_Search_Model_Queue
 {
     public const SUCCESS_LOG = 'meilisearch_queue_log.txt';
@@ -16,7 +11,7 @@ class Meilisearch_Search_Model_Queue
     protected $logTable;
     protected $archiveTable;
 
-    /** @var \Maho\Db\Adapter\AdapterInterface */
+    /** @var Magento_Db_Adapter_Pdo_Mysql */
     protected $db;
 
     /** @var Meilisearch_Search_Helper_Config */
@@ -64,7 +59,7 @@ class Meilisearch_Search_Model_Queue
             'created'   => date('Y-m-d H:i:s'),
             'class'     => $class,
             'method'    => $method,
-            'data'      => Mage::helper('core')->jsonEncode($data),
+            'data'      => json_encode($data),
             'data_size' => $data_size,
             'pid'       => null,
         ]);
@@ -92,12 +87,84 @@ class Meilisearch_Search_Model_Queue
             null;
     }
 
+    /**
+     * MySQL advisory lock held for the duration of a queue run.
+     *
+     * The queue is order-sensitive: a full reindex enqueues many rebuildProductIndex
+     * jobs that all build into one shared <index>_products_tmp, then a final
+     * moveProductsTmpIndex job swaps tmp into place and drops the old index. Run two
+     * of those concurrently and each swaps and each deletes "its" tmp, so one process
+     * destroys the index another just published.
+     *
+     * That is exactly what happened on 2026-08-16: one saveSettings (one reindex) but
+     * seven moveProductsTmpIndex executions across five pids, two of them in the same
+     * second, and Meilisearch logged two indexSwaps in opposite directions followed by
+     * indexDeletion of live_default_products_tmp with deletedDocuments=1847.
+     *
+     * Per-job locking (pid / locked_at in getJobs) is atomic and works, but it only
+     * stops two runners claiming the SAME job - it does not stop two runners each
+     * holding a different slice of the same reindex generation.
+     *
+     * flock on the crontab entry is not enough either: it guards one entry point, and
+     * the runner is reachable from the CLI indexer, cron, and the admin. GET_LOCK is
+     * held in the database, so every entry point contends for the same lock.
+     */
+    public const RUN_LOCK_NAME = 'meilisearch_queue_run';
+
+    /**
+     * True when THIS connection still owns the run lock.
+     *
+     * IS_USED_LOCK returns the connection id currently holding the named lock, or NULL if
+     * it is free. Comparing against CONNECTION_ID() distinguishes "we still hold it" from
+     * "someone else took it after our session dropped".
+     */
+    private function holdsRunLock(): bool
+    {
+        try {
+            $holder = $this->db->fetchOne('SELECT IS_USED_LOCK(?)', [self::RUN_LOCK_NAME]);
+            if ($holder === null || $holder === false) {
+                return false;
+            }
+
+            return (int) $holder === (int) $this->db->fetchOne('SELECT CONNECTION_ID()');
+        } catch (\Exception $e) {
+            // Cannot prove ownership -> treat as not held. Deferring a swap is recoverable;
+            // publishing a partial index over a good one is not.
+            return false;
+        }
+    }
+
     public function runCron($nbJobs = null, $force = false)
     {
         if (!$this->config->isQueueActive() && $force === false) {
             return;
         }
 
+        // 0 = do not wait. A run already in progress will drain the queue; queueing up
+        // behind it just recreates the overlap this is here to prevent.
+        if (!(int) $this->db->fetchOne('SELECT GET_LOCK(?, 0)', [self::RUN_LOCK_NAME])) {
+            // WARNING, not INFO: with the default log level INFO is discarded, and this
+            // message is the only explanation for "the queue is not draining". A long
+            // rebuild legitimately holds the lock for 15+ minutes, during which every
+            // other invocation skips - that needs to be visible, not silent.
+            Mage::log(
+                'Meilisearch queue: another run holds ' . self::RUN_LOCK_NAME . ', skipping this invocation.',
+                Mage::LOG_WARNING,
+                'meilisearch_queue.log',
+                true,
+            );
+            return;
+        }
+
+        try {
+            $this->runCronLocked($nbJobs);
+        } finally {
+            $this->db->fetchOne('SELECT RELEASE_LOCK(?)', [self::RUN_LOCK_NAME]);
+        }
+    }
+
+    private function runCronLocked($nbJobs = null)
+    {
         $this->clearOldLogRecords();
         $this->unlockStackedJobs();
 
@@ -148,10 +215,43 @@ class Meilisearch_Search_Model_Queue
                 continue;
             }
 
+            // The swap is the only destructive step: it publishes tmp over the live index
+            // and drops the old one. It must never run unless this process still holds the
+            // run lock.
+            //
+            // GET_LOCK is tied to the MySQL session, and a full reindex takes ~20 minutes
+            // against the remote RDS instance. If that connection drops and reconnects
+            // mid-run the lock is released silently, another runner may start, and both
+            // would swap - which is the failure this whole mechanism exists to prevent.
+            // The check above only sees failures within the current run, so it would not
+            // catch that.
+            if ($job['method'] === 'moveProductsTmpIndex' && !$this->holdsRunLock()) {
+                Mage::log(
+                    'Meilisearch queue: run lock no longer held (connection likely dropped mid-run); '
+                    . 'deferring swap job ' . $job['job_id'] . ' rather than risk a concurrent publish.',
+                    Mage::LOG_WARNING,
+                    'meilisearch_guard.log',
+                    true,
+                );
+                $this->db->query("UPDATE {$this->db->quoteIdentifier($this->table, true)} SET pid = NULL, locked_at = NULL WHERE job_id = " . $job['job_id']);
+
+                continue;
+            }
+
             try {
                 $model = Mage::getSingleton($job['class']);
                 $method = $job['method'];
-                $model->{$method}(new \Maho\DataObject($job['data']));
+                $model->{$method}(new Varien_Object($job['data']));
+
+                // TEMP DIAGNOSTIC: archive every successfully-processed job before
+                // deleting it, so we keep a full audit trail of what ran (especially
+                // delete/move jobs) to trace why the product index periodically drops.
+                // Successful rows carry an empty error_log; failures carry a message.
+                // Remove this block once the drop cause is found.
+                $archiveIds = array_map('intval', (array) $job['merged_ids']);
+                if (!empty($archiveIds)) {
+                    $this->archiveFailedJobs('job_id IN (' . implode(',', $archiveIds) . ')');
+                }
 
                 // Delete one by one
                 $this->db->delete($this->table, ['job_id IN (?)' => $job['merged_ids']]);
@@ -165,7 +265,7 @@ class Meilisearch_Search_Model_Queue
                 $logMessage = 'Queue processing ' . $job['pid'] . ' [KO]: 
                      Class: ' . $job['class'] . ', 
                      Method: ' . $job['method'] . ', 
-                     Parameters: ' . Mage::helper('core')->jsonEncode($job['data']);
+                     Parameters: ' . json_encode($job['data']);
                 $this->logger->log($logMessage);
 
                 $logMessage = date('c') . ' ERROR: ' . $e::class . ': 
@@ -297,7 +397,7 @@ class Meilisearch_Search_Model_Queue
     private function prepareJobs($jobs)
     {
         foreach ($jobs as &$job) {
-            $job['data'] = Mage::helper('core')->jsonDecode((string) $job['data']);
+            $job['data'] = json_decode((string) $job['data'], true);
             $job['merged_ids'][] = $job['job_id'];
         }
 
