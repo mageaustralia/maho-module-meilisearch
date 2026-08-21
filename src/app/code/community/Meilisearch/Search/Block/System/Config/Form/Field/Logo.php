@@ -5,47 +5,30 @@
  * Copyright (c) 2026 Mageaus.
  */
 
+/**
+ * "Show Logo" admin field for the Meilisearch config section.
+ *
+ * Historically (when this module was forked from Algolia's Magento
+ * extension) the block called the now-deleted ProxyHelper to ask an
+ * Algolia-hosted endpoint whether the active subscription tier required
+ * displaying the Algolia logo, and if so rendered an upsell row pointing
+ * at Algolia's pricing page. None of that applies to Meilisearch — there
+ * is no hosted-tier logo requirement, and the proxy endpoint
+ * (`magento-proxy.meilisearch.com`) has never existed.
+ *
+ * Kept as a pass-through subclass so the system.xml `frontend_model`
+ * reference still resolves without 500'ing the whole config page.
+ */
 class Meilisearch_Search_Block_System_Config_Form_Field_Logo extends Mage_Adminhtml_Block_System_Config_Form_Field
 {
-    protected $_showUpsell = false;
-
-    #[\Override]
-    protected function _getElementHtml(\Maho\Data\Form\Element\AbstractElement $element)
-    {
-        if ($this->showLogo()) {
-            $element->setDisabled(true);
-            $element->setValue(0);
-            $this->_showUpsell = true;
-        }
-
-        return parent::_getElementHtml($element);
-    }
-
     /**
+     * Always false for Meilisearch — no hosted-tier requirement to render
+     * a vendor logo. Retained for back-compat with any external caller.
+     *
      * @return bool
      */
     public function showLogo()
     {
-        $proxyHelper = Mage::helper('meilisearch_search/proxyHelper');
-        $info = $proxyHelper->getClientConfigurationData();
-
-        return isset($info['require_logo']) && $info['require_logo'] == 1;
-    }
-
-    #[\Override]
-    protected function _decorateRowHtml($element, $html)
-    {
-        if (!$this->_showUpsell) {
-            return parent::_decorateRowHtml($element, $html);
-        }
-
-        $additionalRow = '<tr class="meilisearch-messages"><td></td><td colspan="3"><div class="meilisearch-config-info icon-stars">';
-        $additionalRow .= $this->__(
-            'To be able to remove the Meilisearch logo, please consider <a href="%s" target="_blank">upgrading to a higher plan.</a>',
-            'https://www.meilisearch.com/pricing/',
-        );
-        $additionalRow .= '</div></td></tr>';
-
-        return '<tr id="row_' . $element->getHtmlId() . '">' . $html . '</tr>' . $additionalRow;
+        return false;
     }
 }

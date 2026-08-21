@@ -242,6 +242,26 @@ class Meilisearch_Search_Model_Resource_Engine extends Mage_CatalogSearch_Model_
 
     public function rebuildProducts($reindexStoreId = null)
     {
+        // Serialize full product reindexes across processes. Two overlapping runs
+        // share the single *_tmp index and clobber each other (indexCreation
+        // "already exists" / indexDeletion "not found"), swapping a half-built tmp
+        // over the live index. A server-wide named lock lets only one run proceed;
+        // a concurrent caller skips instead of corrupting the index. Fails open if
+        // the lock mechanism is unavailable so a reindex is never permanently blocked.
+        $lockConn = Mage::getSingleton('core/resource')->getConnection('core_write');
+        $lockUsable = true;
+        $lockHeld = false;
+        try {
+            $lockHeld = ((int) $lockConn->fetchOne("SELECT GET_LOCK('meili_products_reindex', 0)") === 1);
+        } catch (\Throwable $e) {
+            $lockUsable = false;
+        }
+        if ($lockUsable && !$lockHeld) {
+            $this->logger->log('rebuildProducts: another full product reindex is already running (lock held) - skipping to avoid a tmp-index collision.');
+            return;
+        }
+
+        try {
         $this->saveSettings(true);
 
         /** @var Mage_Core_Model_Store $store */
@@ -289,6 +309,11 @@ class Meilisearch_Search_Model_Resource_Engine extends Mage_CatalogSearch_Model_
                     ['store_id' => $storeId],
                     1,
                 );
+            }
+        }
+        } finally {
+            if ($lockUsable && $lockHeld) {
+                try { $lockConn->fetchOne("SELECT RELEASE_LOCK('meili_products_reindex')"); } catch (\Throwable $e) {}
             }
         }
     }

@@ -9,7 +9,6 @@ class Meilisearch_Search_Block_Adminhtml_Indexingqueue_Grid extends Mage_Adminht
 {
     /**
      * Initialize Grid Properties
-     *
      */
     public function __construct()
     {

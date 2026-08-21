@@ -10,8 +10,6 @@
  */
 class Meilisearch_Search_Block_System_Config_Form_Field_Facets extends Meilisearch_Search_Block_System_Config_Form_Field_AbstractField
 {
-    protected $_isQueryRulesDisabled;
-
     public function __construct()
     {
         $this->settings = [
@@ -74,42 +72,17 @@ class Meilisearch_Search_Block_System_Config_Form_Field_Facets extends Meilisear
     }
 
     /**
+     * Always true for Meilisearch — the engine doesn't expose Algolia-style
+     * query rules, so the per-facet "Create Query rule?" column stays
+     * disabled. Previously polled an Algolia-hosted proxy endpoint via the
+     * now-deleted ProxyHelper to decide whether the active subscription
+     * tier unlocked the feature; that branch never made sense for the
+     * Meilisearch fork and is gone.
+     *
      * @return bool
      */
     public function isQueryRulesDisabled()
     {
-        if (is_null($this->_isQueryRulesDisabled)) {
-            $this->_isQueryRulesDisabled = $this->_disableQueryRules();
-        }
-
-        return $this->_isQueryRulesDisabled;
-    }
-
-    /**
-     * @return bool
-     */
-    protected function _disableQueryRules()
-    {
-        $proxyHelper = Mage::helper('meilisearch_search/proxyHelper');
-        $info = $proxyHelper->getClientConfigurationData();
-
-        return !isset($info['query_rules']) || $info['query_rules'] == 0;
-    }
-
-    #[\Override]
-    protected function _decorateRowHtml($element, $html)
-    {
-        if (!$this->isQueryRulesDisabled()) {
-            return parent::_decorateRowHtml($element, $html);
-        }
-
-        $additionalRow = '<tr class="meilisearch-messages"><td></td><td><div class="meilisearch-config-info icon-stars">';
-        $additionalRow .= $this->__(
-            'To get access to this Meilisearch feature, please consider <a href="%s" target="_blank">upgrading to a higher plan.</a>',
-            'https://www.meilisearch.com/pricing/',
-        );
-        $additionalRow .= '</div></td></tr>';
-
-        return '<tr id="row_' . $element->getHtmlId() . '">' . $html . '</tr>' . $additionalRow;
+        return true;
     }
 }

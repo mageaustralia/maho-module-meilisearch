@@ -69,7 +69,7 @@ class Meilisearch_Search_Model_Indexer_Meilisearchcategories extends Meilisearch
         switch ($event->getType()) {
             case Mage_Index_Model_Event::TYPE_SAVE:
 
-                /** @var Mage_Catalog_Model_Category $category*/
+                /** @var Mage_Catalog_Model_Category $category */
                 $category = $event->getDataObject();
 
                 $productIds = [];
