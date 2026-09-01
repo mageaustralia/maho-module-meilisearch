@@ -176,18 +176,6 @@
             <!-- Click & Conversion Analytics observers removed - was Algolia-specific -->
 
         </events>
-        <crontab>
-            <jobs>
-                <meilisearch_rebuild_suggestions>
-                    <schedule>
-                        <cron_expr>0 3 * * *</cron_expr>
-                    </schedule>
-                    <run>
-                        <model>meilisearch_search/observer::cronRebuildSuggestions</model>
-                    </run>
-                </meilisearch_rebuild_suggestions>
-            </jobs>
-        </crontab>
         <resources>
             <meilisearch_setup>
                 <setup>
@@ -237,6 +225,21 @@
             </sales_convert_quote_item>
         </fieldsets>
     </global>
+    <!-- Must sit at config/crontab, NOT config/global/crontab. Nested inside <global> the
+         node never reaches the merged config, so the scheduler never sees the job and the
+         _suggestions index is only ever rebuilt by a manual reindex. -->
+    <crontab>
+        <jobs>
+            <meilisearch_rebuild_suggestions>
+                <schedule>
+                    <cron_expr>0 3 * * *</cron_expr>
+                </schedule>
+                <run>
+                    <model>meilisearch_search/observer::cronRebuildSuggestions</model>
+                </run>
+            </meilisearch_rebuild_suggestions>
+        </jobs>
+    </crontab>
     <default>
         <meilisearch>
             <credentials>
