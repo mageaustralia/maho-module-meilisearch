@@ -17,10 +17,6 @@
             <action method="addJs"><script>meilisearch/internals/adminhtml/admin_scripts.js?v=2</script></action>
             <action method="addJs"><script>meilisearch/internals/adminhtml/drag-drop.js?v=2</script></action>
         </reference>
-
-        <reference name="before_body_end">
-            <block type="core/template" template="meilisearch/adminjs.phtml" name="meilisearch-admin-beforebodyend"/>
-        </reference>
     </meilisearch_bundle_handle>
 
     <adminhtml_meilisearch_indexingqueue_index>

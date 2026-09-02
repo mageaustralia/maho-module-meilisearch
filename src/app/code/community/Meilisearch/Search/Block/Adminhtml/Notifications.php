@@ -71,9 +71,6 @@ class Meilisearch_Search_Block_Adminhtml_Notifications extends Mage_Adminhtml_Bl
     #[\Override]
     protected function _toHtml()
     {
-        // Temporarily disabled - return empty string to avoid notifications
-        return '';
-
         $queueInfo = $this->getQueueInfo();
         if ($this->showNotification()
             && $queueInfo['isEnabled'] === true

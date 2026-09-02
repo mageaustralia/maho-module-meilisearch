@@ -1,0 +1,25 @@
+<?php
+
+/**
+ * SPDX-License-Identifier: AFL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+/**
+ * Admin notification shown while the indexing queue has a backlog.
+ *
+ * The block only renders this when the notification is enabled in config, the
+ * queue is active, and there is at least one job waiting, so no emptiness
+ * check is needed here.
+ *
+ * @var Meilisearch_Search_Block_Adminhtml_Notifications $this
+ */
+$queueInfo = $this->getQueueInfo();
+?>
+<div class="notification-global notification-global-notice meilisearch-queue-notification">
+    <?= $this->__(
+        'Meilisearch is indexing: %s job(s) queued, roughly %s remaining.',
+        $this->escapeHtml((string) $queueInfo['currentSize']),
+        $this->escapeHtml((string) $queueInfo['eta']),
+    ) ?>
+    <a href="<?= $this->escapeUrl($this->getConfigurationUrl()) ?>"><?= $this->__('Configure indexing') ?></a>
+</div>

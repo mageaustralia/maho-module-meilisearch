@@ -1,0 +1,47 @@
+<?php
+
+/**
+ * SPDX-License-Identifier: AFL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+/**
+ * Indexing queue status panel.
+ *
+ * Rendered above the queue grid. The block returns an empty string when the
+ * queue is switched off, so reaching this template means the queue is active.
+ *
+ * @var Meilisearch_Search_Block_Adminhtml_Indexingqueue_Status $this
+ */
+$notices = $this->getNotices();
+$lastUpdate = $this->getLastQueueUpdate();
+?>
+<div class="entry-edit meilisearch-queue-status">
+    <div class="entry-edit-head">
+        <h4 class="icon-head head-edit-form fieldset-legend"><?= $this->__('Queue Status') ?></h4>
+    </div>
+    <fieldset>
+        <table cellspacing="0" class="form-list">
+            <tr>
+                <td class="label"><?= $this->__('Queue Runner Status') ?></td>
+                <td class="value"><strong><?= $this->escapeHtml($this->getQueueRunnerStatus()) ?></strong></td>
+            </tr>
+            <tr>
+                <td class="label"><?= $this->__('Last Processed') ?></td>
+                <td class="value">
+                    <?= $lastUpdate ? $this->escapeHtml($lastUpdate) : $this->__('Never') ?>
+                </td>
+            </tr>
+        </table>
+
+        <?php if (!empty($notices)): ?>
+            <ul class="messages">
+                <?php foreach ($notices as $notice): ?>
+                    <?php /* Notices are assembled by the block from translated strings and
+                             admin getUrl() output, and deliberately carry anchor markup, so
+                             they are emitted as-is. No user-supplied data reaches them. */ ?>
+                    <li class="notice-msg"><ul><li><?= $notice ?></li></ul></li>
+                <?php endforeach ?>
+            </ul>
+        <?php endif ?>
+    </fieldset>
+</div>
