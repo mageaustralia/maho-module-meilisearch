@@ -1,0 +1,283 @@
+<?php
+
+/**
+ * SPDX-License-Identifier: AFL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
+/**
+ * Meilisearch Search Analytics — admin dashboard.
+ *
+ * Renders the five datasets populated by
+ * Meilisearch_Search_Adminhtml_Meilisearch_SearchAnalyticsController::indexAction:
+ *
+ *   - top_queries          most-clicked search queries (last 30 days)
+ *   - top_products         most-clicked products (last 30 days)
+ *   - popular_searches     popular searches with results (all time)
+ *   - zero_results         zero-result queries (all time)
+ *   - recent_clicks        last 50 click events
+ *
+ * Each block degrades gracefully when its source table is empty or — for
+ * the click-driven panels — the `meilisearch_search_clicks` table hasn't
+ * been created yet (`has_clicks_table` from the controller is false on a
+ * fresh install before the first click landed).
+ *
+ * @var Mage_Adminhtml_Block_Template $this
+ */
+$topQueries      = (array) $this->getData('top_queries');
+$topProducts     = (array) $this->getData('top_products');
+$popularSearches = (array) $this->getData('popular_searches');
+$zeroResults     = (array) $this->getData('zero_results');
+$recentClicks    = (array) $this->getData('recent_clicks');
+$hasClicksTable  = (bool) $this->getData('has_clicks_table');
+
+$fmtCount = static fn(int $n): string => number_format($n);
+$fmtDate = function ($value) {
+    if (!$value) {
+        return '—';
+    }
+    try {
+        $dt = new DateTimeImmutable((string) $value, new DateTimeZone('UTC'));
+        return $dt->format('Y-m-d H:i');
+    } catch (\Throwable) {
+        return (string) $value;
+    }
+};
+?>
+<style>
+    /* Self-contained table styling — admin's stock `table.data` rules
+       aren't reliably applied here (custom themes can strip them), so
+       we set our own padding/borders/striping instead of depending on
+       cascade. */
+    .meilisearch-analytics .entry-edit { margin-bottom: 18px; }
+    .meilisearch-analytics .entry-edit-head { display: flex; align-items: baseline; gap: 8px; }
+    .meilisearch-analytics .entry-edit-head .count {
+        font-weight: normal; color: var(--maho-color-text-muted, #7a7a7a); font-size: 0.9em;
+    }
+    .meilisearch-analytics table.data {
+        width: 100%;
+        border-collapse: collapse;
+        border: 1px solid var(--maho-color-border, #d4d4d4);
+        background: #fff;
+    }
+    .meilisearch-analytics table.data th,
+    .meilisearch-analytics table.data td {
+        padding: 6px 10px;
+        vertical-align: top;
+        text-align: left;
+        border-bottom: 1px solid var(--maho-color-border, #e2e2e2);
+    }
+    .meilisearch-analytics table.data thead th {
+        background: var(--maho-color-bg-alt, #f4f4f4);
+        font-weight: 600;
+        border-bottom: 2px solid var(--maho-color-border, #c4c4c4);
+        white-space: nowrap;
+    }
+    .meilisearch-analytics table.data th.a-right,
+    .meilisearch-analytics table.data td.a-right {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+    .meilisearch-analytics table.data tr.odd td { background: var(--maho-color-bg-alt, #fafafa); }
+    .meilisearch-analytics table.data tbody tr:last-child td { border-bottom: none; }
+    .meilisearch-analytics table.data td .muted { color: var(--maho-color-text-muted, #7a7a7a); margin-left: 4px; }
+    .meilisearch-analytics .empty {
+        color: var(--maho-color-text-muted, #7a7a7a); padding: 10px 0; font-style: italic;
+    }
+</style>
+
+<div class="meilisearch-analytics">
+<div class="content-header">
+    <h3 class="icon-head head-search-terms"><?php echo $this->__('Search Analytics') ?></h3>
+</div>
+
+<?php if (!$hasClicksTable): ?>
+    <div class="messages">
+        <ul class="messages">
+            <li class="notice-msg">
+                <ul>
+                    <li><?php echo $this->__('The click-tracking table `meilisearch_search_clicks` does not exist yet. The click-driven panels below will populate once the storefront records its first click. Query-only panels work either way.') ?></li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+<?php endif; ?>
+
+<div class="entry-edit">
+    <div class="entry-edit-head">
+        <h4 class="icon-head head-search-terms"><?php echo $this->__('Top Clicked Queries (last 30 days)') ?></h4>
+        <?php if (!empty($topQueries)): ?>
+            <span class="count">— <?php echo $fmtCount(count($topQueries)) ?> <?php echo $this->__(count($topQueries) === 1 ? 'entry' : 'entries') ?></span>
+        <?php endif; ?>
+    </div>
+    <fieldset>
+        <?php if (empty($topQueries)): ?>
+            <p class="empty"><?php echo $this->__('No data yet.') ?></p>
+        <?php else: ?>
+            <table class="data" cellspacing="0">
+                <thead>
+                    <tr class="headings">
+                        <th><?php echo $this->__('Query') ?></th>
+                        <th class="a-right"><?php echo $this->__('Clicks') ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($topQueries as $i => $row): ?>
+                        <tr class="<?php echo $i % 2 ? 'even' : 'odd' ?>">
+                            <td><?php echo $this->escapeHtml($row['query']) ?></td>
+                            <td class="a-right"><?php echo $fmtCount((int) $row['clicks']) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+    </fieldset>
+</div>
+
+<div class="entry-edit">
+    <div class="entry-edit-head">
+        <h4 class="icon-head head-products"><?php echo $this->__('Top Clicked Products (last 30 days)') ?></h4>
+        <?php if (!empty($topProducts)): ?>
+            <span class="count">— <?php echo $fmtCount(count($topProducts)) ?> <?php echo $this->__(count($topProducts) === 1 ? 'product' : 'products') ?></span>
+        <?php endif; ?>
+    </div>
+    <fieldset>
+        <?php if (empty($topProducts)): ?>
+            <p class="empty"><?php echo $this->__('No data yet.') ?></p>
+        <?php else: ?>
+            <table class="data" cellspacing="0">
+                <thead>
+                    <tr class="headings">
+                        <th><?php echo $this->__('Product') ?></th>
+                        <th class="a-right"><?php echo $this->__('Clicks') ?></th>
+                        <th class="a-right"><?php echo $this->__('Distinct Queries') ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($topProducts as $i => $row): ?>
+                        <tr class="<?php echo $i % 2 ? 'even' : 'odd' ?>">
+                            <td>
+                                <?php echo $this->escapeHtml($row['object_name'] ?: $row['object_id']) ?>
+                                <small class="muted">#<?php echo (int) $row['object_id'] ?></small>
+                            </td>
+                            <td class="a-right"><?php echo $fmtCount((int) $row['clicks']) ?></td>
+                            <td class="a-right"><?php echo $fmtCount((int) $row['queries']) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+    </fieldset>
+</div>
+
+<div class="entry-edit">
+    <div class="entry-edit-head">
+        <h4 class="icon-head head-search-terms"><?php echo $this->__('Popular Searches (all time, results > 0)') ?></h4>
+        <?php if (!empty($popularSearches)): ?>
+            <span class="count">— <?php echo $fmtCount(count($popularSearches)) ?> <?php echo $this->__(count($popularSearches) === 1 ? 'query' : 'queries') ?></span>
+        <?php endif; ?>
+    </div>
+    <fieldset>
+        <?php if (empty($popularSearches)): ?>
+            <p class="empty"><?php echo $this->__('No data yet.') ?></p>
+        <?php else: ?>
+            <table class="data" cellspacing="0">
+                <thead>
+                    <tr class="headings">
+                        <th><?php echo $this->__('Query') ?></th>
+                        <th class="a-right"><?php echo $this->__('Results') ?></th>
+                        <th class="a-right"><?php echo $this->__('Popularity') ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($popularSearches as $i => $row): ?>
+                        <tr class="<?php echo $i % 2 ? 'even' : 'odd' ?>">
+                            <td><?php echo $this->escapeHtml($row['query_text']) ?></td>
+                            <td class="a-right"><?php echo $fmtCount((int) $row['num_results']) ?></td>
+                            <td class="a-right"><?php echo $fmtCount((int) $row['popularity']) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+    </fieldset>
+</div>
+
+<div class="entry-edit">
+    <div class="entry-edit-head">
+        <h4 class="icon-head head-warning"><?php echo $this->__('Zero-Result Queries') ?></h4>
+        <?php if (!empty($zeroResults)): ?>
+            <span class="count">— <?php echo $fmtCount(count($zeroResults)) ?> <?php echo $this->__(count($zeroResults) === 1 ? 'query' : 'queries') ?></span>
+        <?php endif; ?>
+    </div>
+    <fieldset>
+        <?php if (empty($zeroResults)): ?>
+            <p class="empty"><?php echo $this->__('No zero-result queries with popularity ≥ 2.') ?></p>
+        <?php else: ?>
+            <table class="data" cellspacing="0">
+                <thead>
+                    <tr class="headings">
+                        <th><?php echo $this->__('Query') ?></th>
+                        <th class="a-right"><?php echo $this->__('Popularity') ?></th>
+                        <th><?php echo $this->__('Last Seen') ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($zeroResults as $i => $row): ?>
+                        <tr class="<?php echo $i % 2 ? 'even' : 'odd' ?>">
+                            <td><?php echo $this->escapeHtml($row['query_text']) ?></td>
+                            <td class="a-right"><?php echo $fmtCount((int) $row['popularity']) ?></td>
+                            <td><?php echo $this->escapeHtml($fmtDate($row['updated_at'])) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+    </fieldset>
+</div>
+
+<?php if ($hasClicksTable): ?>
+<div class="entry-edit">
+    <div class="entry-edit-head">
+        <h4 class="icon-head head-edit-form"><?php echo $this->__('Recent Clicks (last 50)') ?></h4>
+        <?php if (!empty($recentClicks)): ?>
+            <span class="count">— <?php echo $fmtCount(count($recentClicks)) ?> <?php echo $this->__(count($recentClicks) === 1 ? 'event' : 'events') ?></span>
+        <?php endif; ?>
+    </div>
+    <fieldset>
+        <?php if (empty($recentClicks)): ?>
+            <p class="empty"><?php echo $this->__('No clicks recorded yet.') ?></p>
+        <?php else: ?>
+            <table class="data" cellspacing="0">
+                <thead>
+                    <tr class="headings">
+                        <th><?php echo $this->__('When') ?></th>
+                        <th><?php echo $this->__('Query') ?></th>
+                        <th><?php echo $this->__('Type') ?></th>
+                        <th><?php echo $this->__('Object') ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($recentClicks as $i => $row): ?>
+                        <tr class="<?php echo $i % 2 ? 'even' : 'odd' ?>">
+                            <td><?php echo $this->escapeHtml($fmtDate($row['created_at'] ?? '')) ?></td>
+                            <td><?php echo $this->escapeHtml((string) ($row['query'] ?? '')) ?></td>
+                            <td><?php echo $this->escapeHtml((string) ($row['type'] ?? '')) ?></td>
+                            <td>
+                                <?php
+                                $objectName = (string) ($row['object_name'] ?? '');
+                                $objectId   = (int) ($row['object_id'] ?? 0);
+                                echo $this->escapeHtml($objectName ?: (string) $objectId);
+                                if ($objectName && $objectId): ?>
+                                    <small class="muted">#<?php echo $objectId ?></small>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+    </fieldset>
+</div>
+<?php endif; ?>
+</div>

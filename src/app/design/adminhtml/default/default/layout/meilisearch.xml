@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<layout>
+    <default>
+        <reference name="head">
+            <action method="addJs"><script>meilisearch/internals/adminhtml/newrelic-error-suppressor.js</script></action>
+            <action method="addCss"><stylesheet>meilisearch/meilisearch.css</stylesheet></action>
+        </reference>
+
+        <reference name="notifications">
+            <block type="meilisearch_search/adminhtml_notifications" name="meilisearch_notifications" template="meilisearch/notifications.phtml"/>
+        </reference>
+    </default>
+
+    <meilisearch_bundle_handle>
+        <reference name="head">
+            <action method="addJs"><script>meilisearch/internals/adminhtml/meilisearchAdminBundle.min.js</script></action>
+            <action method="addJs"><script>meilisearch/internals/adminhtml/admin_scripts.js?v=2</script></action>
+            <action method="addJs"><script>meilisearch/internals/adminhtml/drag-drop.js?v=2</script></action>
+        </reference>
+
+        <reference name="before_body_end">
+            <block type="core/template" template="meilisearch/adminjs.phtml" name="meilisearch-admin-beforebodyend"/>
+        </reference>
+    </meilisearch_bundle_handle>
+
+    <adminhtml_meilisearch_indexingqueue_index>
+        <reference name="content">
+            <block type="meilisearch_search/adminhtml_indexingqueue_status" name="meilisearch.indexingqueue.status" />
+            <block type="meilisearch_search/adminhtml_indexingqueue" name="meilisearch.indexingqueue.grid.container" />
+        </reference>
+    </adminhtml_meilisearch_indexingqueue_index>
+    <adminhtml_meilisearch_indexingqueue_view>
+        <reference name="content">
+            <block type="meilisearch_search/adminhtml_indexingqueue_edit" name="meilisearch.indexingqueue.edit.container" />
+        </reference>
+    </adminhtml_meilisearch_indexingqueue_view>
+
+    <adminhtml_meilisearch_reindexsku_index>
+        <reference name="content">
+            <block type="meilisearch_search/adminhtml_reindexsku_edit" name="meilisearch.reindexsku.form.container" />
+        </reference>
+    </adminhtml_meilisearch_reindexsku_index>
+
+    <adminhtml_meilisearch_manage_index>
+        <reference name="content">
+            <block type="core/template" name="meilisearch.manage" template="meilisearch/manage.phtml" />
+        </reference>
+    </adminhtml_meilisearch_manage_index>
+</layout>
