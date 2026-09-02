@@ -34,16 +34,16 @@ class Meilisearch_Search_Helper_Entity_Amastypagehelper extends Meilisearch_Sear
         $pageCollection = Mage::getModel('amshopby/page')->getCollection();
 
         // Debug: Log count before store filter
-        Mage::log('Amasty pages collection count BEFORE store filter: ' . $pageCollection->count(), null, 'meilisearch_debug.log');
-        Mage::log('Store ID for filter: ' . $storeId, null, 'meilisearch_debug.log');
+        Mage::helper('meilisearch_search/logger')->log('Amasty pages collection count BEFORE store filter: ' . $pageCollection->count());
+        Mage::helper('meilisearch_search/logger')->log('Store ID for filter: ' . $storeId);
 
         $pageCollection->addStoreFilter($storeId);
 
         // Debug: Log count after store filter
-        Mage::log('Amasty pages collection count AFTER store filter: ' . $pageCollection->count(), null, 'meilisearch_debug.log');
+        Mage::helper('meilisearch_search/logger')->log('Amasty pages collection count AFTER store filter: ' . $pageCollection->count());
 
         // Debug: Log the SQL query
-        Mage::log('Amasty pages SQL query: ' . $pageCollection->getSelect()->__toString(), null, 'meilisearch_debug.log');
+        Mage::helper('meilisearch_search/logger')->log('Amasty pages SQL query: ' . $pageCollection->getSelect()->__toString());
 
         Mage::dispatchEvent('meilisearch_after_amasty_pages_collection_build', ['store' => $storeId, 'collection' => $pageCollection]);
 
@@ -51,14 +51,14 @@ class Meilisearch_Search_Helper_Entity_Amastypagehelper extends Meilisearch_Sear
         $seenTitles = []; // Track titles we've already processed
 
         // Debug: Log collection size and check for limit
-        Mage::log('Collection size before iteration: ' . $pageCollection->getSize(), null, 'meilisearch_debug.log');
-        Mage::log('Collection count method: ' . count($pageCollection), null, 'meilisearch_debug.log');
+        Mage::helper('meilisearch_search/logger')->log('Collection size before iteration: ' . $pageCollection->getSize());
+        Mage::helper('meilisearch_search/logger')->log('Collection count method: ' . count($pageCollection));
 
         // Check if there's a limit set
         $select = $pageCollection->getSelect();
         $limitCount = $select->getPart(\Maho\Db\Select::LIMIT_COUNT);
         $limitOffset = $select->getPart(\Maho\Db\Select::LIMIT_OFFSET);
-        Mage::log('Limit count: ' . var_export($limitCount, true) . ', Offset: ' . var_export($limitOffset, true), null, 'meilisearch_debug.log');
+        Mage::helper('meilisearch_search/logger')->log('Limit count: ' . var_export($limitCount, true) . ', Offset: ' . var_export($limitOffset, true));
 
         $pageCount = 0;
         $skippedCount = 0;
@@ -69,7 +69,7 @@ class Meilisearch_Search_Helper_Entity_Amastypagehelper extends Meilisearch_Sear
             $title = $page->getTitle();
             if (isset($seenTitles[$title])) {
                 $skippedCount++;
-                Mage::log('Skipping duplicate page ID ' . $page->getId() . ' with title: ' . $title . ' (already have ID ' . $seenTitles[$title] . ')', null, 'meilisearch_debug.log');
+                Mage::helper('meilisearch_search/logger')->log('Skipping duplicate page ID ' . $page->getId() . ' with title: ' . $title . ' (already have ID ' . $seenTitles[$title] . ')');
                 continue;
             }
             $seenTitles[$title] = $page->getId();
@@ -94,9 +94,9 @@ class Meilisearch_Search_Helper_Entity_Amastypagehelper extends Meilisearch_Sear
         }
 
         // Debug: Log final count
-        Mage::log('Total pages iterated: ' . $pageCount, null, 'meilisearch_debug.log');
-        Mage::log('Duplicates skipped: ' . $skippedCount, null, 'meilisearch_debug.log');
-        Mage::log('Total unique pages in array: ' . count($pages), null, 'meilisearch_debug.log');
+        Mage::helper('meilisearch_search/logger')->log('Total pages iterated: ' . $pageCount);
+        Mage::helper('meilisearch_search/logger')->log('Duplicates skipped: ' . $skippedCount);
+        Mage::helper('meilisearch_search/logger')->log('Total unique pages in array: ' . count($pages));
 
         return $pages;
     }

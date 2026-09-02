@@ -49,6 +49,44 @@ class MeilisearchReindex extends BaseMahoCommand
             );
     }
 
+    /**
+     * Delete any leftover *_products_tmp index before rebuilding.
+     *
+     * A rebuild fills a _tmp index page by page and swaps it in at the end. If the
+     * run dies partway - most often on a database out-of-memory error - the
+     * half-filled _tmp is left behind. The next run then fails to create it
+     * ("Index `..._tmp` already exists"), carries on appending into the stale
+     * index, and swaps that incomplete result into production. Every run reports
+     * success while the live index quietly stays short, which is how a store can
+     * lose a couple of hundred products across many "full" reindexes.
+     *
+     * Deleting first makes a failed run harmless: the live index is untouched and
+     * the next attempt starts clean. Deletion is safe because _tmp is scratch space
+     * that only exists between the start of a rebuild and its swap.
+     */
+    private function clearProductTmpIndexes(mixed $storeId, OutputInterface $output): void
+    {
+        /** @var \Meilisearch_Search_Helper_Entity_Producthelper $productHelper */
+        $productHelper = Mage::helper('meilisearch_search/entity_producthelper');
+        /** @var \Meilisearch_Search_Helper_Meilisearchhelper $meilisearchHelper */
+        $meilisearchHelper = Mage::helper('meilisearch_search/meilisearchhelper');
+
+        $storeIds = $storeId !== null && $storeId !== ''
+            ? [(int) $storeId]
+            : array_keys(Mage::app()->getStores());
+
+        foreach ($storeIds as $id) {
+            try {
+                $tmpName = $productHelper->getIndexName($id, true);
+                $meilisearchHelper->deleteIndex($tmpName);
+                $output->writeln('<comment>Cleared stale index ' . $tmpName . '</comment>');
+            } catch (\Throwable $e) {
+                // A missing _tmp is the normal case - nothing to clear.
+                $output->writeln('<comment>No stale tmp index for store ' . $id . '</comment>');
+            }
+        }
+    }
+
     #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
@@ -74,6 +112,7 @@ class MeilisearchReindex extends BaseMahoCommand
         try {
             switch ($type) {
                 case 'products':
+                    $this->clearProductTmpIndexes($storeId, $output);
                     $run('products', fn() => $engine->rebuildProducts($storeId));
                     break;
                 case 'categories':
@@ -98,6 +137,7 @@ class MeilisearchReindex extends BaseMahoCommand
                     $run('additional sections', fn() => $engine->rebuildAdditionalSections());
                     break;
                 case 'all':
+                    $this->clearProductTmpIndexes($storeId, $output);
                     $run('products', fn() => $engine->rebuildProducts($storeId));
                     if ($storeId) {
                         $output->writeln('<comment>Store filter only applies to products; skipping store-agnostic entities.</comment>');
