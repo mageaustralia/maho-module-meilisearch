@@ -4,6 +4,10 @@
  * SPDX-License-Identifier: OSL-3.0
  * Copyright (c) 2026 Mageaus.
  */
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
 
 /**
  * Meilisearch search engine model.
@@ -262,58 +266,61 @@ class Meilisearch_Search_Model_Resource_Engine extends Mage_CatalogSearch_Model_
         }
 
         try {
-        $this->saveSettings(true);
+            $this->saveSettings(true);
 
-        /** @var Mage_Core_Model_Store $store */
-        foreach (Mage::app()->getStores() as $store) {
-            $storeId = $store->getId();
+            /** @var Mage_Core_Model_Store $store */
+            foreach (Mage::app()->getStores() as $store) {
+                $storeId = $store->getId();
 
-            if ($reindexStoreId !== null && $storeId != $reindexStoreId) {
-                continue;
-            }
-
-            if ($this->config->isEnabledBackend($storeId) === false) {
-                if (php_sapi_name() === 'cli') {
-                    echo '[MEILISEARCH] INDEXING IS DISABLED FOR ' . $this->logger->getStoreName($storeId) . "\n";
+                if ($reindexStoreId !== null && $storeId != $reindexStoreId) {
+                    continue;
                 }
 
-                if (php_sapi_name() !== 'cli') {
-                    /** @var Mage_Adminhtml_Model_Session $session */
-                    $session = Mage::getSingleton('adminhtml/session');
-                    $session->addWarning('[MEILISEARCH] INDEXING IS DISABLED FOR ' . $this->logger->getStoreName($storeId));
+                if ($this->config->isEnabledBackend($storeId) === false) {
+                    if (php_sapi_name() === 'cli') {
+                        echo '[MEILISEARCH] INDEXING IS DISABLED FOR ' . $this->logger->getStoreName($storeId) . "\n";
+                    }
+
+                    if (php_sapi_name() !== 'cli') {
+                        /** @var Mage_Adminhtml_Model_Session $session */
+                        $session = Mage::getSingleton('adminhtml/session');
+                        $session->addWarning('[MEILISEARCH] INDEXING IS DISABLED FOR ' . $this->logger->getStoreName($storeId));
+                    }
+
+                    $this->logger->log('INDEXING IS DISABLED FOR ' . $this->logger->getStoreName($storeId));
+
+                    continue;
                 }
 
-                $this->logger->log('INDEXING IS DISABLED FOR ' . $this->logger->getStoreName($storeId));
-
-                continue;
+                if ($store->getIsActive()) {
+                    // A full rebuild always populates a fresh tmp index and swaps it in.
+                    //
+                    // Writing straight into the live index only ever adds or overwrites
+                    // documents, so anything that has since left the collection - deleted,
+                    // disabled, unassigned from the website, or re-created under a new
+                    // entity_id - keeps its document and stays searchable. Previously the
+                    // tmp index was used only when the queue happened to be active, which
+                    // made correctness of a reindex depend on an unrelated setting.
+                    //
+                    // addToQueue() dispatches synchronously when the queue is off, so the
+                    // swap still lands after the pages have been written either way.
+                    $this->_rebuildProductIndex($storeId, [], true);
+                    $this->addToQueue('meilisearch_search/observer', 'moveProductsTmpIndex', ['store_id' => $storeId], 1);
+                } else {
+                    $this->addToQueue(
+                        'meilisearch_search/observer',
+                        'deleteProductsStoreIndices',
+                        ['store_id' => $storeId],
+                        1,
+                    );
+                }
             }
-
-            if ($store->getIsActive()) {
-                // A full rebuild always populates a fresh tmp index and swaps it in.
-                //
-                // Writing straight into the live index only ever adds or overwrites
-                // documents, so anything that has since left the collection - deleted,
-                // disabled, unassigned from the website, or re-created under a new
-                // entity_id - keeps its document and stays searchable. Previously the
-                // tmp index was used only when the queue happened to be active, which
-                // made correctness of a reindex depend on an unrelated setting.
-                //
-                // addToQueue() dispatches synchronously when the queue is off, so the
-                // swap still lands after the pages have been written either way.
-                $this->_rebuildProductIndex($storeId, [], true);
-                $this->addToQueue('meilisearch_search/observer', 'moveProductsTmpIndex', ['store_id' => $storeId], 1);
-            } else {
-                $this->addToQueue(
-                    'meilisearch_search/observer',
-                    'deleteProductsStoreIndices',
-                    ['store_id' => $storeId],
-                    1,
-                );
-            }
-        }
         } finally {
             if ($lockUsable && $lockHeld) {
-                try { $lockConn->fetchOne("SELECT RELEASE_LOCK('meili_products_reindex')"); } catch (\Throwable $e) {}
+                try {
+                    $lockConn->fetchOne("SELECT RELEASE_LOCK('meili_products_reindex')");
+                } catch (\Throwable $e) {
+                }
             }
         }
     }

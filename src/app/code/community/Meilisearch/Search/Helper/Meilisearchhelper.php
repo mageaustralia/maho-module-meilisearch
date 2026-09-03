@@ -4,6 +4,10 @@
  * SPDX-License-Identifier: OSL-3.0
  * Copyright (c) 2026 Mageaus.
  */
+/**
+ * SPDX-License-Identifier: OSL-3.0
+ * Copyright (c) 2026 Mageaus.
+ */
 
 // Include Meilisearch autoloader for OpenMage
 require_once dirname(__FILE__, 2) . '/Model/Autoloader.php';
@@ -373,9 +377,16 @@ class Meilisearch_Search_Helper_Meilisearchhelper extends Mage_Core_Helper_Abstr
                 if ($liveCount > 100 && $tmpCount < ($liveCount * self::MIN_SWAP_RATIO)) {
                     Mage::log(sprintf(
                         'moveIndex ABORTED for %s: tmp %s has %d docs vs live %d - refusing to shrink products index (would drop %d). Clearing tmp for clean retry.',
-                        $indexName, $tmpIndexName, $tmpCount, $liveCount, $liveCount - $tmpCount
+                        $indexName,
+                        $tmpIndexName,
+                        $tmpCount,
+                        $liveCount,
+                        $liveCount - $tmpCount,
                     ), Mage::LOG_WARNING, 'meilisearch_guard.log', true);
-                    try { $this->client->deleteIndex($tmpIndexName); } catch (\Exception $e) {}
+                    try {
+                        $this->client->deleteIndex($tmpIndexName);
+                    } catch (\Exception $e) {
+                    }
                     return ['taskID' => 0];
                 }
             } catch (\Throwable $e) {
