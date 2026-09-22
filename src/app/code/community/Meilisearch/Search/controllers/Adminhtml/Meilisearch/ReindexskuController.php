@@ -12,7 +12,10 @@ class Meilisearch_Search_Adminhtml_Meilisearch_ReindexskuController extends Mage
     #[\Override]
     public function preDispatch()
     {
-        $this->_setForcedFormKeyActions(['reindexPost']);
+        // Removed in Maho 26.9, where core key-checks every admin request itself
+        if (method_exists($this, '_setForcedFormKeyActions')) {
+            $this->_setForcedFormKeyActions(['reindexPost']);
+        }
         return parent::preDispatch();
     }
 

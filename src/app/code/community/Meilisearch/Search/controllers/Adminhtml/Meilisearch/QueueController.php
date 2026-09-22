@@ -10,7 +10,10 @@ class Meilisearch_Search_Adminhtml_Meilisearch_QueueController extends Mage_Admi
     #[\Override]
     public function preDispatch()
     {
-        $this->_setForcedFormKeyActions(['truncate']);
+        // Removed in Maho 26.9, where core key-checks every admin request itself
+        if (method_exists($this, '_setForcedFormKeyActions')) {
+            $this->_setForcedFormKeyActions(['truncate']);
+        }
         return parent::preDispatch();
     }
 

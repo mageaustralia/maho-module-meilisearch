@@ -15,7 +15,10 @@ class Meilisearch_Search_Adminhtml_Meilisearch_IndexingqueueController extends M
     #[\Override]
     public function preDispatch()
     {
-        $this->_setForcedFormKeyActions(['clear', 'reset']);
+        // Removed in Maho 26.9, where core key-checks every admin request itself
+        if (method_exists($this, '_setForcedFormKeyActions')) {
+            $this->_setForcedFormKeyActions(['clear', 'reset']);
+        }
         parent::preDispatch();
         $this->_checkQueueIsActivated();
         return $this;
