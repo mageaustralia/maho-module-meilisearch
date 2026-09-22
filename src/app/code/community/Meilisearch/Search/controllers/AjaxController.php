@@ -95,7 +95,7 @@ class Meilisearch_Search_AjaxController extends Mage_Core_Controller_Front_Actio
                     ->addColumn('object_id', \Maho\Db\Ddl\Table::TYPE_INTEGER, null, ['unsigned' => true, 'nullable' => true])
                     ->addColumn('object_name', \Maho\Db\Ddl\Table::TYPE_TEXT, 255, ['nullable' => true])
                     ->addColumn('position', \Maho\Db\Ddl\Table::TYPE_SMALLINT, null, ['unsigned' => true, 'nullable' => false, 'default' => 0])
-                    ->addColumn('created_at', \Maho\Db\Ddl\Table::TYPE_TIMESTAMP, null, ['nullable' => false, 'default' => \Maho\Db\Ddl\Table::TIMESTAMP_INIT])
+                    ->addColumn('created_at', \Maho\Db\Ddl\Table::TYPE_DATETIME, null, ['nullable' => false, 'default' => \Maho\Db\Ddl\Table::TIMESTAMP_INIT])
                     ->addIndex($write->getIndexName($table, ['store_id', 'query']), ['store_id', 'query'])
                     ->addIndex($write->getIndexName($table, ['object_id']), ['object_id'])
                     ->setComment('Meilisearch Search Click-Through Analytics');
