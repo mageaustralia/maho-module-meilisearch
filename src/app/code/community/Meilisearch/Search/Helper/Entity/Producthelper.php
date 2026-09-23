@@ -565,6 +565,23 @@ class Meilisearch_Search_Helper_Entity_Producthelper extends Meilisearch_Search_
         return $price;
     }
 
+    /**
+     * Converts an amount between currencies, throwing on a missing rate as the
+     * deprecated currencyConvert() did: convert() answers null instead, which
+     * would silently index a wrong price.
+     */
+    private function convertCurrency($amount, string $from, string $to): float
+    {
+        $converted = Mage::helper('directory')->convert((float) $amount, $from, $to);
+        if ($converted === null) {
+            throw new Mage_Core_Exception(
+                Mage::helper('directory')->__('Undefined rate from "%s-%s".', $from, $to),
+            );
+        }
+
+        return $converted;
+    }
+
     protected function handlePrice(Mage_Catalog_Model_Product &$product, $sub_products, &$customData)
     {
         $fields = $this->getFields($product->getStore());
@@ -594,9 +611,6 @@ class Meilisearch_Search_Helper_Entity_Producthelper extends Meilisearch_Search_
         /** @var Mage_Tax_Helper_Data $taxHelper */
         $taxHelper = Mage::helper('tax');
 
-        /** @var Mage_Directory_Helper_Data $directoryHelper */
-        $directoryHelper = Mage::helper('directory');
-
         foreach ($fields as $field => $with_tax) {
             $customData[$field] = [];
 
@@ -604,14 +618,14 @@ class Meilisearch_Search_Helper_Entity_Producthelper extends Meilisearch_Search_
                 $customData[$field][$currency_code] = [];
 
                 $price = (float) $taxHelper->getPrice($product, $product->getPrice(), $with_tax, null, null, null, $product->getStore(), null);
-                $price = $directoryHelper->currencyConvert($price, $baseCurrencyCode, $currency_code);
+                $price = $this->convertCurrency($price, $baseCurrencyCode, $currency_code);
                 $price += $weeeTaxAmount;
 
                 $customData[$field][$currency_code]['default'] = $price;
                 $customData[$field][$currency_code]['default_formated'] = $this->formatPrice($price, false, $currency_code);
 
                 $special_price = (float) $taxHelper->getPrice($product, $product->getFinalPrice(), $with_tax, null, null, null, $product->getStore(), null);
-                $special_price = $directoryHelper->currencyConvert($special_price, $baseCurrencyCode, $currency_code);
+                $special_price = $this->convertCurrency($special_price, $baseCurrencyCode, $currency_code);
                 $special_price += $weeeTaxAmount;
 
                 if ($customer_groups_enabled) {
@@ -622,7 +636,7 @@ class Meilisearch_Search_Helper_Entity_Producthelper extends Meilisearch_Search_
                         $product->setCustomerGroupId($group_id);
 
                         $discounted_price = $product->getPriceModel()->getFinalPrice(1, $product);
-                        $discounted_price = $directoryHelper->currencyConvert($discounted_price, $baseCurrencyCode, $currency_code);
+                        $discounted_price = $this->convertCurrency($discounted_price, $baseCurrencyCode, $currency_code);
                         $discounted_price += $weeeTaxAmount;
 
                         if ($discounted_price !== false) {
@@ -636,7 +650,7 @@ class Meilisearch_Search_Helper_Entity_Producthelper extends Meilisearch_Search_
                                 $product->getStore(),
                                 null,
                             );
-                            $customData[$field][$currency_code]['group_' . $group_id] = $directoryHelper->currencyConvert(
+                            $customData[$field][$currency_code]['group_' . $group_id] = $this->convertCurrency(
                                 $customData[$field][$currency_code]['group_' . $group_id],
                                 $baseCurrencyCode,
                                 $currency_code,
@@ -726,8 +740,8 @@ class Meilisearch_Search_Helper_Entity_Producthelper extends Meilisearch_Search_
                     }
 
                     if ($min != $max) {
-                        $min = $directoryHelper->currencyConvert($min, $baseCurrencyCode, $currency_code);
-                        $max = $directoryHelper->currencyConvert($max, $baseCurrencyCode, $currency_code);
+                        $min = $this->convertCurrency($min, $baseCurrencyCode, $currency_code);
+                        $max = $this->convertCurrency($max, $baseCurrencyCode, $currency_code);
 
                         $dashed_format = $this->formatPrice($min, false, $currency_code) . ' - ' . $this->formatPrice(
                             $max,

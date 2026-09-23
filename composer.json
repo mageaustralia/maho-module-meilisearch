@@ -20,7 +20,7 @@
   ],
   "require": {
     "php": ">=8.3",
-    "mahocommerce/maho": ">=26.5 <26.11",
+    "mahocommerce/maho": ">=26.9 <26.11",
     "meilisearch/meilisearch-php": "^1.0",
     "php-http/guzzle7-adapter": "^1.0",
     "guzzlehttp/guzzle": "^7.0"
@@ -71,5 +71,5 @@
       ]
     ]
   },
-  "version": "2.1.0"
+  "version": "3.0.0"
 }
