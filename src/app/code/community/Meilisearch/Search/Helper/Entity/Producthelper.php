@@ -622,11 +622,11 @@ class Meilisearch_Search_Helper_Entity_Producthelper extends Meilisearch_Search_
                         $product->setCustomerGroupId($group_id);
 
                         $discounted_price = $product->getPriceModel()->getFinalPrice(1, $product);
-                        $discounted_price = $directoryHelper->currencyConvert($discounted_price, $baseCurrencyCode, $currency_code);
-                        $discounted_price += $weeeTaxAmount;
 
                         if ($discounted_price !== false) {
-                            $customData[$field][$currency_code]['group_' . $group_id] = (float) $taxHelper->getPrice(
+                            // Same steps as the special price above: tax on the base price,
+                            // convert once, then add WEEE
+                            $group_price = (float) $taxHelper->getPrice(
                                 $product,
                                 $discounted_price,
                                 $with_tax,
@@ -636,15 +636,11 @@ class Meilisearch_Search_Helper_Entity_Producthelper extends Meilisearch_Search_
                                 $product->getStore(),
                                 null,
                             );
-                            $customData[$field][$currency_code]['group_' . $group_id] = $directoryHelper->currencyConvert(
-                                $customData[$field][$currency_code]['group_' . $group_id],
-                                $baseCurrencyCode,
-                                $currency_code,
-                            );
-                            $customData[$field][$currency_code]['group_' . $group_id . '_formated'] = $store->formatPrice(
-                                $customData[$field][$currency_code]['group_' . $group_id],
-                                false,
-                            );
+                            $group_price = $directoryHelper->currencyConvert($group_price, $baseCurrencyCode, $currency_code);
+                            $group_price += $weeeTaxAmount;
+
+                            $customData[$field][$currency_code]['group_' . $group_id] = $group_price;
+                            $customData[$field][$currency_code]['group_' . $group_id . '_formated'] = $this->formatPrice($group_price, false, $currency_code);
                         } else {
                             $customData[$field][$currency_code]['group_' . $group_id] = $customData[$field][$currency_code]['default'];
                             $customData[$field][$currency_code]['group_' . $group_id . '_formated'] = $customData[$field][$currency_code]['default_formated'];
