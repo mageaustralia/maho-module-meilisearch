@@ -501,8 +501,14 @@ class Meilisearch_Search_Helper_Data extends Mage_Core_Helper_Abstract
                 $this->meilisearch_helper->clearIndex($indexName);
             }
 
-            // Get products to index
-            $collection = $this->product_helper->getProductCollectionQuery($storeId, $productIds, false);
+            // The BARCODES collection, not the product one. They are not interchangeable:
+            // the barcode helper deliberately carries no visibility or status filter
+            // ("include ALL products", per its own comment), because a scanner in a
+            // warehouse has to find a product whether or not the website shows it. Reading
+            // the product helper here quietly narrowed a full rebuild to the catalogue the
+            // site displays, and diverged from the incremental path, which has always used
+            // the barcode helper.
+            $collection = $barcodesHelper->getProductCollectionQuery($storeId, $productIds, false);
             $size = $collection->getSize();
 
             if ($size > 0) {
@@ -519,8 +525,19 @@ class Meilisearch_Search_Helper_Data extends Mage_Core_Helper_Abstract
 
                     $barcodeData = [];
                     foreach ($collection as $product) {
+                        $product->setStoreId($storeId);
                         $barcodeRecord = $barcodesHelper->getObject($product);
-                        if ($barcodeRecord && !empty($barcodeRecord['barcode'])) {
+                        // getObject() returns objectID/sku/name/gtin/price/url/image_url/
+                        // is_enabled - there is no 'barcode' key and never has been. Testing
+                        // for one made this condition false for every product, so a full
+                        // rebuild cleared the index above and then wrote nothing back: the
+                        // live index kept only whatever ordinary product saves had re-added
+                        // since the last rebuild, which on a busy catalogue is a small
+                        // fraction of it. A scanner then cannot find most of the warehouse,
+                        // and every rebuild reports success.
+                        //
+                        // The incremental path guards on the record alone; match it.
+                        if (!empty($barcodeRecord)) {
                             $barcodeData[] = $barcodeRecord;
                         }
                     }
